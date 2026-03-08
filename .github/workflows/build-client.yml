@@ -1,0 +1,56 @@
+name: Build Windows Client
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger khi push tag v1.0.0, v1.0.1, ...
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: client/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r client/requirements.txt
+
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium
+
+      - name: Write version file
+        shell: bash
+        run: |
+          echo "${{ github.ref_name }}" > client/src/VERSION
+
+      - name: Build with PyInstaller
+        run: |
+          cd client
+          pyinstaller --noconfirm build.spec
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "RealSearch Client ${{ github.ref_name }}"
+          body: |
+            ## RealSearch Client ${{ github.ref_name }}
+
+            ### Cài đặt
+            1. Tải file `RealSearch-Setup.exe` bên dưới
+            2. Chạy file, đăng nhập bằng tài khoản RealSearch
+            3. App sẽ tự động cập nhật khi có bản mới
+          files: |
+            client/dist/RealSearch.exe
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
