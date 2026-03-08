@@ -1,17 +1,83 @@
 """RealSearch Client - Entry point."""
 import asyncio
+import os
+import shutil
 import sys
 import tkinter as tk
 from tkinter import ttk
 
-from src.config import get_version
+from src.config import get_version, get_app_dir
 from src.utils.logger import log
 
 
-def check_update_on_startup():
-    """Kiểm tra cập nhật TRƯỚC khi hiện login. Hiện splash nếu có update."""
+def self_install():
+    """Tự cài đặt vào thư mục cố định (AppData/RealSearch).
+    Nếu user chạy từ Downloads hay Desktop, copy vào AppData và chạy từ đó.
+    """
     if not getattr(sys, 'frozen', False):
-        return  # Dev mode, bỏ qua
+        return  # Dev mode
+
+    current_exe = os.path.abspath(sys.executable)
+    install_dir = get_app_dir()
+    installed_exe = install_dir / "RealSearch.exe"
+
+    # Nếu đã chạy từ thư mục cài đặt thì bỏ qua
+    if os.path.abspath(str(installed_exe)) == current_exe:
+        return
+
+    # Copy vào thư mục cài đặt
+    try:
+        install_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(current_exe, str(installed_exe))
+        log.info(f"Đã cài đặt vào: {installed_exe}")
+
+        # Tạo shortcut trên Desktop
+        try:
+            desktop = os.path.join(os.environ.get("USERPROFILE", ""), "Desktop")
+            if os.path.exists(desktop):
+                _create_shortcut(str(installed_exe), desktop)
+        except Exception:
+            pass
+
+        # Thông báo user
+        import tkinter.messagebox as mb
+        root = tk.Tk()
+        root.withdraw()
+        mb.showinfo(
+            "RealSearch - Đã cài đặt",
+            f"RealSearch đã được cài vào:\n{installed_exe}\n\n"
+            f"Shortcut đã tạo trên Desktop.\n"
+            f"Bạn có thể xoá file hiện tại tại:\n{current_exe}"
+        )
+        root.destroy()
+    except Exception as e:
+        log.warning(f"Không thể tự cài đặt: {e}")
+
+
+def _create_shortcut(target_exe: str, desktop_path: str):
+    """Tạo shortcut .lnk trên Desktop bằng PowerShell."""
+    import subprocess
+    shortcut_path = os.path.join(desktop_path, "RealSearch.lnk")
+    ps_script = f"""
+$ws = New-Object -ComObject WScript.Shell
+$sc = $ws.CreateShortcut("{shortcut_path}")
+$sc.TargetPath = "{target_exe}"
+$sc.WorkingDirectory = "{os.path.dirname(target_exe)}"
+$sc.Description = "RealSearch Client"
+$sc.Save()
+"""
+    subprocess.run(
+        ["powershell", "-Command", ps_script],
+        capture_output=True,
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+    )
+    log.info(f"Đã tạo shortcut: {shortcut_path}")
+
+
+def check_update_on_startup():
+    """Kiểm tra cập nhật TRƯỚC khi hiện login."""
+    if not getattr(sys, 'frozen', False):
+        return  # Dev mode
 
     try:
         loop = asyncio.new_event_loop()
@@ -27,12 +93,11 @@ def check_update_on_startup():
             splash.title("RealSearch - Cập nhật")
             splash.geometry("400x150")
             splash.resizable(False, False)
-            # Center window
             splash.eval('tk::PlaceWindow . center')
 
             ttk.Label(
                 splash,
-                text=f"Đang cập nhật lên phiên bản v{version}...",
+                text=f"Đang cập nhật lên v{version}...",
                 font=("Segoe UI", 11),
             ).pack(pady=20)
 
@@ -60,7 +125,6 @@ def check_update_on_startup():
 
             splash.after(500, do_update)
             splash.mainloop()
-            # Nếu đến đây mà chưa exit = update failed, tiếp tục bình thường
         else:
             loop.close()
     except Exception as e:
@@ -77,6 +141,9 @@ def on_login_success(user_data: dict):
 def main():
     version = get_version()
     log.info(f"RealSearch Client v{version} khởi động")
+
+    # Tự cài đặt vào thư mục cố định nếu chạy lần đầu
+    self_install()
 
     # Kiểm tra cập nhật trước khi hiện login
     check_update_on_startup()

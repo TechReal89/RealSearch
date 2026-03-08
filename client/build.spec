@@ -11,7 +11,8 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('src/VERSION', '.'),
+        ('src/VERSION', '.'),           # Cho get_version() mới (_MEIPASS/VERSION)
+        ('src/VERSION', 'src'),         # Cho get_version() cũ (_MEIPASS/src/VERSION)
         (driver_dir, 'playwright/driver'),
     ],
     hiddenimports=[
@@ -42,6 +43,6 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,  # Ẩn console window
-    icon=None,  # TODO: thêm icon sau
+    console=False,
+    icon=None,
 )
