@@ -88,14 +88,23 @@ class MainWindow:
         settings_frame = ttk.LabelFrame(ctrl, text="Cài đặt", padding=5)
         settings_frame.pack(side="right")
 
-        ttk.Label(settings_frame, text="Mode:").pack(side="left")
+        ttk.Label(settings_frame, text="Trình duyệt:").pack(side="left")
+
+        self._mode_labels = {
+            "Ẩn hoàn toàn": "headless",
+            "Chạy ẩn (khuyên dùng)": "headed_hidden",
+            "Hiển thị": "headed",
+        }
+        self._mode_reverse = {v: k for k, v in self._mode_labels.items()}
+        mode_display = list(self._mode_labels.keys())
+
         self.combo_mode = ttk.Combobox(
             settings_frame,
-            values=["headless", "headed_hidden", "headed"],
+            values=mode_display,
             state="readonly",
-            width=14,
+            width=22,
         )
-        self.combo_mode.set(config.browser_mode)
+        self.combo_mode.set(self._mode_reverse.get(config.browser_mode, "Chạy ẩn (khuyên dùng)"))
         self.combo_mode.pack(side="left", padx=5)
         self.combo_mode.bind("<<ComboboxSelected>>", self._on_mode_change)
 
@@ -233,9 +242,10 @@ class MainWindow:
         self.lbl_status.config(text="⚪ Đã dừng")
 
     def _on_mode_change(self, event):
-        mode = self.combo_mode.get()
+        display = self.combo_mode.get()
+        mode = self._mode_labels.get(display, "headed_hidden")
         config.set("browser_mode", mode)
-        log.info(f"Đổi browser mode: {mode}")
+        log.info(f"Đổi chế độ trình duyệt: {display}")
 
     def _logout(self):
         self._stop()
