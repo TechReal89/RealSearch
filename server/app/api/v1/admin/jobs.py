@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,6 +12,28 @@ from app.schemas.admin import AdminJobPriority
 from app.schemas.job import JobListResponse, JobResponse
 
 router = APIRouter(prefix="/admin/jobs", tags=["admin-jobs"])
+
+
+class AdminCreateJob(BaseModel):
+    user_id: int
+    title: str
+    job_type: str
+    target_url: str
+    target_count: int = 100
+    credit_per_view: int = 1
+    priority: int = 5
+    admin_priority: int = 0
+    config: dict = {}
+
+
+class AdminUpdateJob(BaseModel):
+    title: str | None = None
+    target_url: str | None = None
+    target_count: int | None = None
+    credit_per_view: int | None = None
+    priority: int | None = None
+    admin_priority: int | None = None
+    config: dict | None = None
 
 
 @router.get("", response_model=JobListResponse)
@@ -47,6 +70,50 @@ async def list_all_jobs(
     )
 
 
+@router.post("", response_model=JobResponse)
+async def admin_create_job(
+    data: AdminCreateJob,
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    user = await db.get(User, data.user_id)
+    if not user:
+        raise NotFoundError("User not found")
+    job = Job(
+        user_id=data.user_id,
+        title=data.title,
+        job_type=JobType(data.job_type),
+        target_url=data.target_url,
+        target_count=data.target_count,
+        credit_per_view=data.credit_per_view,
+        priority=data.priority,
+        admin_priority=data.admin_priority,
+        config=data.config,
+        status=JobStatus.DRAFT,
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+    return JobResponse.model_validate(job)
+
+
+@router.put("/{job_id}", response_model=JobResponse)
+async def admin_update_job(
+    job_id: int,
+    data: AdminUpdateJob,
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await db.get(Job, job_id)
+    if not job:
+        raise NotFoundError("Job not found")
+    for field, value in data.model_dump(exclude_none=True).items():
+        setattr(job, field, value)
+    await db.commit()
+    await db.refresh(job)
+    return JobResponse.model_validate(job)
+
+
 @router.get("/{job_id}", response_model=JobResponse)
 async def get_job(
     job_id: int,
@@ -70,6 +137,23 @@ async def set_job_priority(
     if not job:
         raise NotFoundError("Job not found")
     job.admin_priority = data.admin_priority
+    await db.commit()
+    await db.refresh(job)
+    return JobResponse.model_validate(job)
+
+
+@router.post("/{job_id}/start", response_model=JobResponse)
+async def admin_start_job(
+    job_id: int,
+    admin: User = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    job = await db.get(Job, job_id)
+    if not job:
+        raise NotFoundError("Job not found")
+    if job.status not in (JobStatus.DRAFT, JobStatus.PAUSED):
+        raise BadRequestError("Chỉ có thể bắt đầu job ở trạng thái nháp hoặc tạm dừng")
+    job.status = JobStatus.ACTIVE
     await db.commit()
     await db.refresh(job)
     return JobResponse.model_validate(job)

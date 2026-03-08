@@ -26,10 +26,6 @@ jobs:
         run: |
           pip install -r client/requirements.txt
 
-      - name: Install Playwright browsers
-        run: |
-          playwright install chromium
-
       - name: Write version file
         shell: bash
         run: |
@@ -48,9 +44,10 @@ jobs:
             ## RealSearch Client ${{ github.ref_name }}
 
             ### Cài đặt
-            1. Tải file `RealSearch-Setup.exe` bên dưới
-            2. Chạy file, đăng nhập bằng tài khoản RealSearch
-            3. App sẽ tự động cập nhật khi có bản mới
+            1. Tải file `RealSearch.exe` bên dưới
+            2. Chạy file lần đầu, app sẽ tự động tải trình duyệt Chromium (~150MB)
+            3. Đăng nhập bằng tài khoản RealSearch
+            4. App sẽ tự động cập nhật khi có bản mới
           files: |
             client/dist/RealSearch.exe
           draft: false

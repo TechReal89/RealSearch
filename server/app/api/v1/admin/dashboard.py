@@ -9,6 +9,7 @@ from app.models.payment import Payment
 from app.models.session import ClientSession
 from app.models.user import User
 from app.schemas.admin import DashboardStats
+from app.ws.manager import manager
 
 router = APIRouter(prefix="/admin/dashboard", tags=["admin-dashboard"])
 
@@ -37,10 +38,8 @@ async def get_dashboard(
         .where(Payment.status == "completed")
     )).scalar() or 0
 
-    online_clients = (await db.execute(
-        select(func.count()).select_from(ClientSession)
-        .where(ClientSession.is_online == True)
-    )).scalar() or 0
+    # Use in-memory WebSocket manager count for real-time accuracy
+    online_clients = manager.online_count
 
     return DashboardStats(
         total_users=total_users,

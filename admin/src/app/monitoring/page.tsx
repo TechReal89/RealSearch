@@ -82,7 +82,7 @@ export default function MonitoringPage() {
                 onKeyDown={(e) => e.key === "Enter" && handleBroadcast()}
                 className="flex-1"
               />
-              <Select value={broadcastLevel} onValueChange={setBroadcastLevel}>
+              <Select value={broadcastLevel} onValueChange={(v) => v && setBroadcastLevel(v)}>
                 <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="info">Info</SelectItem>

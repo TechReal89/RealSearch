@@ -1,5 +1,8 @@
 """Browser lifecycle + stealth management."""
 import asyncio
+import os
+import subprocess
+import sys
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
@@ -10,12 +13,66 @@ _playwright = None
 _browser: Browser | None = None
 
 
+_browsers_checked = False
+
+
+def ensure_browsers_installed():
+    """Kiểm tra và tự động cài đặt Chromium nếu chưa có."""
+    global _browsers_checked
+    if _browsers_checked:
+        return
+    _browsers_checked = True
+
+    try:
+        if getattr(sys, 'frozen', False):
+            # Đang chạy từ PyInstaller .exe
+            # Tìm node executable trong thư mục driver đã bundle
+            base_dir = sys._MEIPASS  # type: ignore
+            driver_dir = os.path.join(base_dir, "playwright", "driver")
+            if os.name == "nt":
+                node_exe = os.path.join(driver_dir, "node.exe")
+                cli_js = os.path.join(driver_dir, "package", "cli.js")
+            else:
+                node_exe = os.path.join(driver_dir, "node")
+                cli_js = os.path.join(driver_dir, "package", "cli.js")
+
+            if os.path.exists(node_exe) and os.path.exists(cli_js):
+                log.info("Kiểm tra và cài đặt trình duyệt Chromium (lần đầu có thể mất vài phút)...")
+                result = subprocess.run(
+                    [node_exe, cli_js, "install", "chromium"],
+                    capture_output=True, text=True, timeout=600,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+                )
+                if result.returncode == 0:
+                    log.info("Chromium đã sẵn sàng")
+                else:
+                    log.warning(f"Cài Chromium: {result.stdout} {result.stderr}")
+            else:
+                log.warning("Không tìm thấy Playwright driver trong bundle")
+        else:
+            # Dev mode - dùng playwright install
+            log.info("Kiểm tra trình duyệt Chromium...")
+            result = subprocess.run(
+                [sys.executable, "-m", "playwright", "install", "chromium"],
+                capture_output=True, text=True, timeout=600,
+            )
+            if result.returncode == 0:
+                log.info("Chromium đã sẵn sàng")
+            else:
+                log.warning(f"Cài Chromium: {result.stderr}")
+    except Exception as e:
+        log.error(f"Lỗi cài đặt trình duyệt: {e}")
+
+
 async def init_browser() -> Browser:
     """Khởi tạo Playwright browser."""
     global _playwright, _browser
 
     if _browser and _browser.is_connected():
         return _browser
+
+    # Đảm bảo browser đã được cài
+    ensure_browsers_installed()
 
     _playwright = await async_playwright().start()
 
@@ -31,10 +88,20 @@ async def init_browser() -> Browser:
         "--disable-popup-blocking",
     ]
 
-    _browser = await _playwright.chromium.launch(
-        headless=headless,
-        args=launch_args,
-    )
+    try:
+        _browser = await _playwright.chromium.launch(
+            headless=headless,
+            args=launch_args,
+        )
+    except Exception as e:
+        log.error(f"Không thể mở trình duyệt: {e}")
+        # Thử lại với channel chrome (dùng Chrome đã cài trên máy)
+        log.info("Thử dùng Chrome có sẵn trên máy...")
+        _browser = await _playwright.chromium.launch(
+            headless=headless,
+            channel="chrome",
+            args=launch_args,
+        )
 
     log.info(f"Browser khởi tạo (mode={mode})")
     return _browser

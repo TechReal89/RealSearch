@@ -1,4 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+import playwright
+
+# Tìm thư mục driver của Playwright
+pw_dir = os.path.dirname(playwright.__file__)
+driver_dir = os.path.join(pw_dir, 'driver')
 
 a = Analysis(
     ['src/main.py'],
@@ -6,11 +12,15 @@ a = Analysis(
     binaries=[],
     datas=[
         ('src/VERSION', '.'),
+        (driver_dir, 'playwright/driver'),
     ],
     hiddenimports=[
         'websockets',
         'httpx',
         'pydantic',
+        'playwright',
+        'playwright._impl',
+        'playwright._impl._driver',
     ],
     hookspath=[],
     hooksconfig={},
