@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'  # Trigger khi push tag v1.0.0, v1.0.1, ...
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
