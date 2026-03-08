@@ -17,10 +17,14 @@ def get_app_dir() -> Path:
 
 def get_version() -> str:
     """Đọc version từ file VERSION."""
-    version_file = Path(__file__).parent / "VERSION"
+    # Khi đóng gói PyInstaller, file nằm ở _MEIPASS root
+    if getattr(sys, 'frozen', False):
+        version_file = Path(sys._MEIPASS) / "VERSION"  # type: ignore
+    else:
+        version_file = Path(__file__).parent / "VERSION"
     if version_file.exists():
         return version_file.read_text().strip()
-    return "v0.0.1-dev"
+    return "0.0.1-dev"
 
 
 APP_DIR = get_app_dir()

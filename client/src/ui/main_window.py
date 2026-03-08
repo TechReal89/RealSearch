@@ -24,7 +24,7 @@ class MainWindow:
         }
 
         self.root = tk.Tk()
-        self.root.title(f"RealSearch Client {get_version()}")
+        self.root.title(f"RealSearch Client v{get_version()}")
         self.root.geometry("700x500")
         self.root.minsize(600, 400)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)

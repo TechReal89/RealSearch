@@ -3,6 +3,7 @@ import asyncio
 import tkinter as tk
 from tkinter import ttk, messagebox
 
+from src.config import get_version
 from src.network.api_client import api
 
 
@@ -10,7 +11,7 @@ class LoginWindow:
     def __init__(self, on_login_success):
         self.on_login_success = on_login_success
         self.root = tk.Tk()
-        self.root.title("RealSearch - Đăng nhập")
+        self.root.title(f"RealSearch v{get_version()} - Đăng nhập")
         self.root.geometry("400x300")
         self.root.resizable(False, False)
         self._center_window()
@@ -30,10 +31,13 @@ class LoginWindow:
         # Title
         ttk.Label(
             frame, text="RealSearch", font=("Segoe UI", 20, "bold")
-        ).pack(pady=(0, 5))
+        ).pack(pady=(0, 2))
+        ttk.Label(
+            frame, text=f"v{get_version()}", font=("Segoe UI", 9), foreground="gray"
+        ).pack(pady=(0, 3))
         ttk.Label(
             frame, text="Đăng nhập để bắt đầu", font=("Segoe UI", 10)
-        ).pack(pady=(0, 20))
+        ).pack(pady=(0, 15))
 
         # Username
         ttk.Label(frame, text="Username hoặc Email").pack(anchor="w")
