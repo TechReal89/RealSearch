@@ -1,0 +1,87 @@
+"""Client configuration - lưu local bằng JSON."""
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def get_app_dir() -> Path:
+    """Thư mục lưu config, log."""
+    if getattr(sys, 'frozen', False):
+        base = Path(os.environ.get("APPDATA", Path.home())) / "RealSearch"
+    else:
+        base = Path(__file__).parent.parent / "data"
+    base.mkdir(parents=True, exist_ok=True)
+    return base
+
+
+def get_version() -> str:
+    """Đọc version từ file VERSION."""
+    version_file = Path(__file__).parent / "VERSION"
+    if version_file.exists():
+        return version_file.read_text().strip()
+    return "v0.0.1-dev"
+
+
+APP_DIR = get_app_dir()
+CONFIG_FILE = APP_DIR / "config.json"
+LOG_FILE = APP_DIR / "realsearch.log"
+
+DEFAULT_CONFIG = {
+    "server_url": "http://36.50.232.108:8000",
+    "ws_url": "ws://36.50.232.108:8000/ws",
+    "browser_mode": "headed_hidden",  # headless, headed_hidden, headed
+    "enabled_job_types": ["viewlink"],
+    "max_concurrent": 1,
+    "auto_start": False,
+    "proxy": None,  # {"host": "", "port": 0, "username": "", "password": ""}
+}
+
+
+class Config:
+    def __init__(self):
+        self._data: dict = {}
+        self.load()
+
+    def load(self):
+        if CONFIG_FILE.exists():
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                self._data = json.load(f)
+        # Merge defaults
+        for k, v in DEFAULT_CONFIG.items():
+            if k not in self._data:
+                self._data[k] = v
+
+    def save(self):
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(self._data, f, indent=2, ensure_ascii=False)
+
+    def get(self, key: str, default=None):
+        return self._data.get(key, default)
+
+    def set(self, key: str, value):
+        self._data[key] = value
+        self.save()
+
+    @property
+    def server_url(self) -> str:
+        return self._data["server_url"]
+
+    @property
+    def ws_url(self) -> str:
+        return self._data["ws_url"]
+
+    @property
+    def browser_mode(self) -> str:
+        return self._data["browser_mode"]
+
+    @property
+    def enabled_job_types(self) -> list[str]:
+        return self._data["enabled_job_types"]
+
+    @property
+    def max_concurrent(self) -> int:
+        return self._data["max_concurrent"]
+
+
+config = Config()
