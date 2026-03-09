@@ -115,8 +115,6 @@ a = Analysis(
     runtime_hooks=[],
     excludes=[],
     noarchive=False,
-    win_no_prefer_redirects=False,
-    win_private_assemblies=True,
 )
 
 pyz = PYZ(a.pure)
