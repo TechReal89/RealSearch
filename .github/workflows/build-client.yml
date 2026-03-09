@@ -25,11 +25,16 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r client/requirements.txt
+          pip install Pillow
 
       - name: Write version file
         shell: bash
         run: |
           echo "${{ github.ref_name }}" > client/src/VERSION
+
+      - name: Generate app icon
+        run: |
+          python client/scripts/gen_icon.py
 
       - name: Build with PyInstaller
         run: |
