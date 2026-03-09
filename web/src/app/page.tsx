@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,14 @@ import { authApi } from "@/lib/api";
 import { toast } from "sonner";
 
 export default function HomePage() {
+  return (
+    <Suspense>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -23,6 +31,14 @@ export default function HomePage() {
   const [regEmail, setRegEmail] = useState("");
   const [regPass, setRegPass] = useState("");
   const [regName, setRegName] = useState("");
+  const [refCode, setRefCode] = useState("");
+
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const ref = searchParams.get("ref");
+    if (ref) setRefCode(ref);
+  }, [searchParams]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +65,7 @@ export default function HomePage() {
         email: regEmail,
         password: regPass,
         full_name: regName || undefined,
+        referral_code: refCode || undefined,
       });
       localStorage.setItem("access_token", data.access_token);
       localStorage.setItem("refresh_token", data.refresh_token);
@@ -142,6 +159,14 @@ export default function HomePage() {
                       onChange={(e) => setRegPass(e.target.value)}
                       placeholder="••••••••"
                       required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Ma gioi thieu (tuy chon)</Label>
+                    <Input
+                      value={refCode}
+                      onChange={(e) => setRefCode(e.target.value)}
+                      placeholder="ABC12345"
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>

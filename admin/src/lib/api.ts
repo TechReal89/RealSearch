@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://36.50.232.108:8000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.realsearch.techreal.vn";
 
 interface FetchOptions extends RequestInit {
   token?: string;

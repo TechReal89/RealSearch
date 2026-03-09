@@ -13,6 +13,7 @@ class UserRegister(BaseModel):
     username: str = Field(min_length=3, max_length=50, pattern=r"^[a-zA-Z0-9_]+$")
     password: str = Field(min_length=6, max_length=128)
     full_name: str | None = Field(None, max_length=100)
+    referral_code: str | None = Field(None, max_length=20)
 
 
 class UserLogin(BaseModel):
@@ -44,6 +45,7 @@ class UserResponse(BaseModel):
     total_earned: int
     total_spent: int
     is_active: bool
+    referral_code: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

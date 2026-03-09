@@ -1,3 +1,6 @@
+import secrets
+import string
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +15,7 @@ from app.core.security import (
 )
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.credit import CreditTransaction, CreditType
 from app.models.user import User
 from app.schemas.user import (
     MeResponse,
@@ -21,6 +25,12 @@ from app.schemas.user import (
     UserRegister,
     UserResponse,
 )
+
+
+def _generate_referral_code(length=8) -> str:
+    """Tạo mã giới thiệu ngẫu nhiên."""
+    chars = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(chars) for _ in range(length))
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -36,13 +46,53 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
             raise ConflictError("Email already registered")
         raise ConflictError("Username already taken")
 
+    # Xử lý referral code
+    referred_by = None
+    referrer = None
+    if data.referral_code:
+        ref_result = await db.execute(
+            select(User).where(User.referral_code == data.referral_code.upper())
+        )
+        referrer = ref_result.scalar_one_or_none()
+        if referrer:
+            referred_by = referrer.id
+
+    # Tạo referral code cho user mới
+    referral_code = _generate_referral_code()
+    # Đảm bảo unique
+    while True:
+        check = await db.execute(
+            select(User).where(User.referral_code == referral_code)
+        )
+        if not check.scalar_one_or_none():
+            break
+        referral_code = _generate_referral_code()
+
     user = User(
         email=data.email,
         username=data.username,
         hashed_password=hash_password(data.password),
         full_name=data.full_name,
+        referral_code=referral_code,
+        referred_by=referred_by,
     )
     db.add(user)
+
+    # Thưởng credit cho người giới thiệu
+    if referrer:
+        bonus = 50  # credit_referral_bonus mặc định
+        referrer.credit_balance += bonus
+        referrer.total_earned += bonus
+        txn = CreditTransaction(
+            user_id=referrer.id,
+            type=CreditType.REFERRAL,
+            amount=bonus,
+            balance_after=referrer.credit_balance,
+            description=f"Giới thiệu thành công: {data.username}",
+            reference_type="referral",
+        )
+        db.add(txn)
+
     await db.commit()
     await db.refresh(user)
 

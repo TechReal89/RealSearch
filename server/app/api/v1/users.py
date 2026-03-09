@@ -34,6 +34,37 @@ async def update_profile(
     return UserResponse.model_validate(current_user)
 
 
+@router.get("/referral")
+async def get_referral_info(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lấy thông tin referral của user."""
+    from sqlalchemy import func, select
+
+    # Đếm số người đã giới thiệu
+    referred_count = (await db.execute(
+        select(func.count()).select_from(User).where(User.referred_by == current_user.id)
+    )).scalar() or 0
+
+    # Tổng credit từ referral
+    from app.models.credit import CreditTransaction, CreditType
+    total_referral_credit = (await db.execute(
+        select(func.coalesce(func.sum(CreditTransaction.amount), 0))
+        .where(
+            CreditTransaction.user_id == current_user.id,
+            CreditTransaction.type == CreditType.REFERRAL,
+        )
+    )).scalar() or 0
+
+    return {
+        "referral_code": current_user.referral_code,
+        "referral_link": f"https://realsearch.techreal.vn/register?ref={current_user.referral_code}",
+        "referred_count": referred_count,
+        "total_referral_credit": int(total_referral_credit),
+    }
+
+
 @router.get("/stats")
 async def get_user_stats(
     current_user: User = Depends(get_current_user),

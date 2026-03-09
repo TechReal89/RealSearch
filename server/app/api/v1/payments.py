@@ -1,6 +1,7 @@
+import logging
 import uuid
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query, Request
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +16,12 @@ from app.schemas.payment import (
     PaymentListResponse,
     PaymentResponse,
 )
+from app.services.payment_service import (
+    generate_bank_transfer_info,
+    process_sepay_webhook,
+)
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/payments", tags=["payments"])
 
@@ -29,7 +36,7 @@ async def get_channels(db: AsyncSession = Depends(get_db)):
     return [PaymentChannelResponse.model_validate(c) for c in result.scalars().all()]
 
 
-@router.post("/create", response_model=PaymentResponse, status_code=201)
+@router.post("/create", status_code=201)
 async def create_payment(
     data: PaymentCreate,
     current_user: User = Depends(get_current_user),
@@ -62,7 +69,53 @@ async def create_payment(
     db.add(payment)
     await db.commit()
     await db.refresh(payment)
-    return PaymentResponse.model_validate(payment)
+
+    response = PaymentResponse.model_validate(payment).model_dump()
+
+    # Thêm thông tin chuyển khoản nếu là bank_transfer hoặc sepay
+    if channel.name in ("bank_transfer", "sepay"):
+        response["transfer_info"] = generate_bank_transfer_info(
+            payment, channel.config or {}
+        )
+
+    return response
+
+
+@router.post("/callback/sepay")
+async def sepay_callback(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    SePay webhook callback - tự động xác nhận thanh toán.
+    SePay gọi endpoint này khi có giao dịch mới trên tài khoản ngân hàng.
+    """
+    try:
+        data = await request.json()
+    except Exception:
+        return {"success": False, "reason": "Invalid JSON"}
+
+    # Lấy API key từ channel config để verify
+    result = await db.execute(
+        select(PaymentChannel).where(PaymentChannel.name == "sepay")
+    )
+    channel = result.scalar_one_or_none()
+
+    api_key = ""
+    if channel and channel.config:
+        api_key = channel.config.get("api_key", "")
+
+    # Verify Authorization header nếu có api_key
+    if api_key:
+        auth_header = request.headers.get("Authorization", "")
+        expected = f"Bearer {api_key}"
+        if auth_header != expected:
+            logger.warning("SePay webhook: invalid API key")
+            return {"success": False, "reason": "Unauthorized"}
+
+    result = await process_sepay_webhook(db, data, api_key)
+    logger.info(f"SePay webhook result: {result}")
+    return result
 
 
 @router.get("/{payment_id}", response_model=PaymentResponse)

@@ -6,6 +6,9 @@ from tkinter import ttk, scrolledtext
 
 from src.config import config, get_version
 from src.jobs.viewlink import ViewLinkExecutor
+from src.jobs.keyword_seo import KeywordSEOExecutor
+from src.jobs.backlink import BacklinkExecutor
+from src.jobs.social_media import SocialMediaExecutor
 from src.network.api_client import api
 from src.network.ws_client import ws_client, set_callbacks
 from src.utils.logger import log, set_ui_callback
@@ -21,6 +24,9 @@ class MainWindow:
         # Job executors
         self.executors = {
             "viewlink": ViewLinkExecutor(),
+            "keyword_seo": KeywordSEOExecutor(),
+            "backlink": BacklinkExecutor(),
+            "social_media": SocialMediaExecutor(),
         }
 
         self.root = tk.Tk()

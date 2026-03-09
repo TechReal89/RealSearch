@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://36.50.232.108:8000/api/v1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.realsearch.techreal.vn/api/v1";
 
 async function fetchApi(path: string, options: RequestInit = {}) {
   const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
@@ -52,7 +52,7 @@ async function refreshToken(): Promise<boolean> {
 export const authApi = {
   login: (username: string, password: string) =>
     fetchApi("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }),
-  register: (data: { username: string; email: string; password: string; full_name?: string }) =>
+  register: (data: { username: string; email: string; password: string; full_name?: string; referral_code?: string }) =>
     fetchApi("/auth/register", { method: "POST", body: JSON.stringify(data) }),
   me: () => fetchApi("/auth/me"),
 };
@@ -62,6 +62,7 @@ export const userApi = {
   updateProfile: (data: Record<string, unknown>) =>
     fetchApi("/users/profile", { method: "PUT", body: JSON.stringify(data) }),
   stats: () => fetchApi("/users/stats"),
+  referral: () => fetchApi("/users/referral"),
 };
 
 export const jobApi = {
