@@ -89,8 +89,8 @@ async def update_job(
     db: AsyncSession = Depends(get_db),
 ):
     job = await _get_user_job(job_id, current_user, db)
-    if job.status not in (JobStatus.DRAFT, JobStatus.PAUSED):
-        raise BadRequestError("Can only edit draft or paused jobs")
+    if job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED):
+        raise BadRequestError("Cannot edit completed or cancelled jobs")
 
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
@@ -108,13 +108,11 @@ async def delete_job(
     db: AsyncSession = Depends(get_db),
 ):
     job = await _get_user_job(job_id, current_user, db)
-    if job.status == JobStatus.ACTIVE:
-        job.status = JobStatus.CANCELLED
-        await db.commit()
-    else:
-        await db.delete(job)
-        await db.commit()
-    return {"detail": "Job deleted"}
+    if job.status in (JobStatus.COMPLETED, JobStatus.CANCELLED):
+        raise BadRequestError("Job already finished")
+    job.status = JobStatus.CANCELLED
+    await db.commit()
+    return {"detail": "Job cancelled"}
 
 
 @router.post("/{job_id}/start", response_model=JobResponse)
