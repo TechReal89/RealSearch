@@ -272,8 +272,8 @@ class MainWindow:
         ornament.pack(fill="x", padx=15, pady=5)
 
         # === Log Viewer ===
-        log_outer = tk.Frame(self.root, bg=COLORS["bg"], padx=15, pady=(0, 10))
-        log_outer.pack(fill="both", expand=True)
+        log_outer = tk.Frame(self.root, bg=COLORS["bg"], padx=15)
+        log_outer.pack(fill="both", expand=True, pady=(0, 10))
 
         # Log header
         log_header = tk.Frame(log_outer, bg=COLORS["bg_card"], padx=10, pady=6,

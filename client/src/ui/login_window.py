@@ -60,7 +60,7 @@ class LoginWindow:
         self.on_login_success = on_login_success
         self.root = tk.Tk()
         self.root.title(f"RealSearch v{get_version()}")
-        self.root.geometry("440x420")
+        self.root.geometry("440x500")
         self.root.resizable(False, False)
         self.root.configure(bg=COLORS["bg"])
 
@@ -125,7 +125,7 @@ class LoginWindow:
 
     def _center_window(self):
         self.root.update_idletasks()
-        w, h = 440, 420
+        w, h = 440, 500
         x = (self.root.winfo_screenwidth() - w) // 2
         y = (self.root.winfo_screenheight() - h) // 2
         self.root.geometry(f"{w}x{h}+{x}+{y}")
