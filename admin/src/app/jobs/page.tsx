@@ -153,6 +153,11 @@ export default function JobsPage() {
     } catch (e) { toast.error(e instanceof Error ? e.message : "Lỗi"); }
   };
 
+  const handleStart = async (id: number) => {
+    try { await adminApi.startJob(id); toast.success("Đã bắt đầu chạy"); load(); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Lỗi"); }
+  };
+
   const handlePause = async (id: number) => {
     try { await adminApi.pauseJob(id); toast.success("Đã tạm dừng"); load(); }
     catch (e) { toast.error(e instanceof Error ? e.message : "Lỗi"); }
@@ -238,7 +243,7 @@ export default function JobsPage() {
                     <TableCell>
                       <div className="flex gap-1 flex-wrap">
                         <Button size="sm" variant="secondary" onClick={() => handleEdit(j)}>Sửa</Button>
-                        {j.status === "draft" && <Button size="sm" onClick={() => handleResume(j.id)}>Chạy</Button>}
+                        {j.status === "draft" && <Button size="sm" onClick={() => handleStart(j.id)}>Chạy</Button>}
                         {j.status === "active" && <Button size="sm" variant="outline" onClick={() => handlePause(j.id)}>Dừng</Button>}
                         {j.status === "paused" && <Button size="sm" variant="outline" onClick={() => handleResume(j.id)}>Tiếp tục</Button>}
                         {!["cancelled", "completed"].includes(j.status) && (
