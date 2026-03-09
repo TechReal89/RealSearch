@@ -129,6 +129,9 @@ class KeywordSEOExecutor(BaseJobExecutor):
         await page.wait_for_load_state("domcontentloaded", timeout=15000)
         await human_delay(2.0, 4.0)
 
+        # Dismiss tất cả popup Google (vị trí, translate, notification...)
+        await self._dismiss_google_popups(page, task_id)
+
         # Tìm trên từng trang kết quả
         found = False
         clicked_url = ""
@@ -139,6 +142,9 @@ class KeywordSEOExecutor(BaseJobExecutor):
         for page_num in range(1, max_search_page + 1):
             pages_scrolled = page_num
             log.info(f"[Task #{task_id}] Đang tìm trên trang {page_num}...")
+
+            # Dismiss popup nếu xuất hiện lại
+            await self._dismiss_google_popups(page, task_id)
 
             # Cuộn tự nhiên qua kết quả
             await human_scroll(page, "natural")
@@ -292,6 +298,57 @@ class KeywordSEOExecutor(BaseJobExecutor):
                 "scroll_depth": 0,
                 "pages_searched": pages_scrolled,
             }
+
+    async def _dismiss_google_popups(self, page, task_id) -> None:
+        """Dismiss tất cả popup Google: vị trí, translate, notifications..."""
+        popup_buttons = [
+            # Popup hỏi vị trí - "Để sau" / "Không, cảm ơn" / "Not now"
+            'button:has-text("Để sau")',
+            'button:has-text("Không, cảm ơn")',
+            'button:has-text("Not now")',
+            'button:has-text("No thanks")',
+            # Google Translate bar - nút đóng
+            '#gt-nvframe',
+            '.goog-te-banner-frame',
+            # Notification popup
+            'button:has-text("No thanks")',
+            'button:has-text("Block")',
+            # Generic dismiss/close buttons trên dialog
+            '[role="dialog"] button:has-text("Để sau")',
+            '[role="dialog"] button:has-text("Không")',
+            '[role="dialog"] button:has-text("Cancel")',
+            '[role="dialog"] button:has-text("Dismiss")',
+        ]
+
+        for selector in popup_buttons:
+            try:
+                btn = page.locator(selector).first
+                if await btn.is_visible(timeout=500):
+                    await btn.click(timeout=2000)
+                    log.info(f"[Task #{task_id}] Dismissed popup: {selector}")
+                    await human_delay(0.5, 1.0)
+            except Exception:
+                pass
+
+        # Dismiss Google Translate bar bằng JS (nếu có iframe)
+        try:
+            await page.evaluate("""
+                () => {
+                    // Đóng Google Translate banner
+                    const frames = document.querySelectorAll('.goog-te-banner-frame, #gt-nvframe');
+                    frames.forEach(f => f.remove());
+                    // Đóng popup dialog nếu có nút "Để sau"
+                    const btns = document.querySelectorAll('button');
+                    btns.forEach(b => {
+                        const text = b.textContent?.trim() || '';
+                        if (text === 'Để sau' || text === 'Not now' || text === 'Không, cảm ơn') {
+                            b.click();
+                        }
+                    });
+                }
+            """)
+        except Exception:
+            pass
 
     async def _click_next_page(self, page) -> bool:
         """Click nút 'Trang tiếp theo' trên Google."""
