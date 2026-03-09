@@ -7,14 +7,50 @@ interface FetchOptions extends RequestInit {
 export async function api<T>(endpoint: string, options: FetchOptions = {}): Promise<T> {
   const { token, headers, ...rest } = options;
 
-  const res = await fetch(`${API_URL}${endpoint}`, {
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...headers,
-    },
-    ...rest,
-  });
+  const doFetch = (tkn?: string) =>
+    fetch(`${API_URL}${endpoint}`, {
+      headers: {
+        "Content-Type": "application/json",
+        ...(tkn ? { Authorization: `Bearer ${tkn}` } : {}),
+        ...headers,
+      },
+      ...rest,
+    });
+
+  let res = await doFetch(token);
+
+  // Auto-refresh token on 401
+  if (res.status === 401 && token && typeof window !== "undefined") {
+    const rt = localStorage.getItem("realsearch_refresh_token");
+    if (rt) {
+      try {
+        const refreshRes = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: rt }),
+        });
+        if (refreshRes.ok) {
+          const data = await refreshRes.json();
+          localStorage.setItem("realsearch_access_token", data.access_token);
+          localStorage.setItem("realsearch_refresh_token", data.refresh_token);
+          res = await doFetch(data.access_token);
+        } else {
+          // Refresh failed - redirect to login
+          localStorage.removeItem("realsearch_access_token");
+          localStorage.removeItem("realsearch_refresh_token");
+          window.location.href = "/login";
+          throw new Error("Phiên đăng nhập hết hạn");
+        }
+      } catch (e) {
+        if (e instanceof Error && e.message === "Phiên đăng nhập hết hạn") throw e;
+        // Network error on refresh - redirect to login
+        localStorage.removeItem("realsearch_access_token");
+        localStorage.removeItem("realsearch_refresh_token");
+        window.location.href = "/login";
+        throw new Error("Phiên đăng nhập hết hạn");
+      }
+    }
+  }
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: "Request failed" }));
