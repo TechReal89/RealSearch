@@ -5,7 +5,7 @@ import json
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from src.config import get_version, get_app_dir
+from src.config import get_version, get_app_dir, get_icon_path
 from src.network.api_client import api
 
 SAVED_CREDENTIALS_FILE = get_app_dir() / "credentials.dat"
@@ -63,6 +63,14 @@ class LoginWindow:
         self.root.geometry("440x420")
         self.root.resizable(False, False)
         self.root.configure(bg=COLORS["bg"])
+
+        # Set window icon
+        icon_path = get_icon_path()
+        if icon_path:
+            try:
+                self.root.iconbitmap(icon_path)
+            except Exception:
+                pass
 
         # Remove default title bar styling
         self.root.option_add("*TCombobox*Listbox.background", COLORS["bg_card"])

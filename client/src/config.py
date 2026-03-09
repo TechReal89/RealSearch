@@ -15,6 +15,17 @@ def get_app_dir() -> Path:
     return base
 
 
+def get_icon_path() -> str | None:
+    """Trả về đường dẫn file icon.ico."""
+    if getattr(sys, 'frozen', False):
+        icon = Path(sys._MEIPASS) / "assets" / "icon.ico"  # type: ignore
+    else:
+        icon = Path(__file__).parent.parent / "assets" / "icon.ico"
+    if icon.exists():
+        return str(icon)
+    return None
+
+
 def get_version() -> str:
     """Đọc version từ file VERSION."""
     # Khi đóng gói PyInstaller, file nằm ở _MEIPASS root

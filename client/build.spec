@@ -14,6 +14,7 @@ a = Analysis(
         ('src/VERSION', '.'),           # Cho get_version() mới (_MEIPASS/VERSION)
         ('src/VERSION', 'src'),         # Cho get_version() cũ (_MEIPASS/src/VERSION)
         (driver_dir, 'playwright/driver'),
+        ('assets/icon.ico', 'assets'),  # App icon
     ],
     hiddenimports=[
         'websockets',
@@ -44,5 +45,5 @@ exe = EXE(
     strip=False,
     upx=False,
     console=False,
-    icon=None,
+    icon='assets/icon.ico',
 )

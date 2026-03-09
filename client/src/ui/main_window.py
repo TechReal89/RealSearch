@@ -4,7 +4,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 
-from src.config import config, get_version
+from src.config import config, get_version, get_icon_path
 from src.jobs.viewlink import ViewLinkExecutor
 from src.jobs.keyword_seo import KeywordSEOExecutor
 from src.jobs.backlink import BacklinkExecutor
@@ -56,6 +56,14 @@ class MainWindow:
         self.root.minsize(650, 450)
         self.root.configure(bg=COLORS["bg"])
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        # Set window icon
+        icon_path = get_icon_path()
+        if icon_path:
+            try:
+                self.root.iconbitmap(icon_path)
+            except Exception:
+                pass
 
         self._setup_styles()
         self._build_ui()
@@ -212,8 +220,8 @@ class MainWindow:
         self.lbl_tasks.pack(side="right")
 
         # Buttons row
-        btn_frame = tk.Frame(self.root, bg=COLORS["bg"], padx=15, pady=(0, 5))
-        btn_frame.pack(fill="x")
+        btn_frame = tk.Frame(self.root, bg=COLORS["bg"], padx=15)
+        btn_frame.pack(fill="x", pady=(0, 5))
 
         self.btn_start = ttk.Button(
             btn_frame, text="▶  BẮT ĐẦU", command=self._start,

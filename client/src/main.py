@@ -63,7 +63,8 @@ $ws = New-Object -ComObject WScript.Shell
 $sc = $ws.CreateShortcut("{shortcut_path}")
 $sc.TargetPath = "{target_exe}"
 $sc.WorkingDirectory = "{os.path.dirname(target_exe)}"
-$sc.Description = "Real SEO Client"
+$sc.Description = "RealSearch Client"
+$sc.IconLocation = "{target_exe},0"
 $sc.Save()
 """
     subprocess.run(
