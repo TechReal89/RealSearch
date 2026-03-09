@@ -10,6 +10,15 @@ from src.config import get_version, get_app_dir
 from src.utils.logger import log
 
 
+def _get_bundled_icon_path() -> str:
+    """Lấy đường dẫn icon.ico từ bundle PyInstaller."""
+    if getattr(sys, 'frozen', False):
+        base = sys._MEIPASS
+    else:
+        base = os.path.join(os.path.dirname(__file__), "..")
+    return os.path.join(base, "assets", "icon.ico")
+
+
 def self_install():
     """Tự cài đặt vào thư mục cố định (AppData/RealSearch).
     Nếu user chạy từ Downloads hay Desktop, copy vào AppData và chạy từ đó.
@@ -23,6 +32,8 @@ def self_install():
 
     # Nếu đã chạy từ thư mục cài đặt thì bỏ qua
     if os.path.abspath(str(installed_exe)) == current_exe:
+        # Vẫn copy icon nếu chưa có (trường hợp cập nhật từ bản cũ)
+        _copy_icon_to_install_dir(install_dir)
         return
 
     # Copy vào thư mục cài đặt
@@ -30,6 +41,9 @@ def self_install():
         install_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(current_exe, str(installed_exe))
         log.info(f"Đã cài đặt vào: {installed_exe}")
+
+        # Copy icon.ico vào thư mục cài đặt
+        _copy_icon_to_install_dir(install_dir)
 
         # Tạo shortcut trên Desktop
         try:
@@ -54,17 +68,40 @@ def self_install():
         log.warning(f"Không thể tự cài đặt: {e}")
 
 
+def _copy_icon_to_install_dir(install_dir):
+    """Copy icon.ico từ bundle vào thư mục cài đặt."""
+    try:
+        bundled_icon = _get_bundled_icon_path()
+        if os.path.exists(bundled_icon):
+            dest_dir = install_dir / "assets"
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            dest_icon = dest_dir / "icon.ico"
+            shutil.copy2(bundled_icon, str(dest_icon))
+            log.info(f"Đã copy icon vào: {dest_icon}")
+        else:
+            log.warning(f"Không tìm thấy icon bundled: {bundled_icon}")
+    except Exception as e:
+        log.warning(f"Không thể copy icon: {e}")
+
+
 def _create_shortcut(target_exe: str, desktop_path: str):
     """Tạo shortcut .lnk trên Desktop bằng PowerShell."""
     import subprocess
     shortcut_path = os.path.join(desktop_path, "RealSearch.lnk")
+
+    # Sử dụng icon.ico từ thư mục cài đặt thay vì icon nhúng trong .exe
+    install_dir = os.path.dirname(target_exe)
+    icon_path = os.path.join(install_dir, "assets", "icon.ico")
+    # Fallback về exe nếu icon file không tồn tại
+    icon_location = f"{icon_path},0" if os.path.exists(icon_path) else f"{target_exe},0"
+
     ps_script = f"""
 $ws = New-Object -ComObject WScript.Shell
 $sc = $ws.CreateShortcut("{shortcut_path}")
 $sc.TargetPath = "{target_exe}"
 $sc.WorkingDirectory = "{os.path.dirname(target_exe)}"
 $sc.Description = "RealSearch Client"
-$sc.IconLocation = "{target_exe},0"
+$sc.IconLocation = "{icon_location}"
 $sc.Save()
 """
     subprocess.run(
@@ -72,7 +109,7 @@ $sc.Save()
         capture_output=True,
         creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
     )
-    log.info(f"Đã tạo shortcut: {shortcut_path}")
+    log.info(f"Đã tạo shortcut: {shortcut_path} (icon: {icon_location})")
 
 
 def check_update_on_startup():

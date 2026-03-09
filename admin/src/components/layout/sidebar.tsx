@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
 import {
-  LayoutDashboard, Users, Briefcase, Coins, Wallet, Package, Gift, Monitor, Server, Settings,
+  LayoutDashboard, Users, Briefcase, Coins, Wallet, Package, Gift, Monitor, Server, ShieldAlert, Settings, FileText,
 } from "lucide-react";
 
 const navItems = [
@@ -18,6 +18,7 @@ const navItems = [
   { href: "/promotions", label: "Khuyến mãi", icon: Gift },
   { href: "/monitoring", label: "Giám sát", icon: Monitor },
   { href: "/server-monitor", label: "Máy chủ", icon: Server },
+  { href: "/security", label: "Bảo mật", icon: ShieldAlert },
   { href: "/settings", label: "Cài đặt", icon: Settings },
 ];
 
@@ -62,6 +63,19 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Documentation Link */}
+      <div className="px-3 pb-2">
+        <a
+          href="/SYSTEM_DOCUMENTATION.md"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 text-[#8a8999] hover:text-[#f5f0e8] hover:bg-[rgba(255,255,255,0.03)] border border-transparent"
+        >
+          <FileText className="w-4 h-4" />
+          Tài liệu hệ thống
+        </a>
+      </div>
 
       {/* Footer */}
       <div className="px-5 py-4 border-t border-[rgba(212,168,75,0.06)]">

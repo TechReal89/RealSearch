@@ -196,7 +196,7 @@ export default function JobsPage() {
         </div>
 
         <Card>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -222,7 +222,7 @@ export default function JobsPage() {
                     <TableCell>{j.id}</TableCell>
                     <TableCell className="text-xs">#{j.user_id}</TableCell>
                     <TableCell><Badge variant="outline">{typeLabels[j.job_type] || j.job_type}</Badge></TableCell>
-                    <TableCell className="font-medium max-w-40 truncate">{j.title}</TableCell>
+                    <TableCell className="font-medium max-w-xs truncate">{j.title}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <div className="w-16 bg-muted rounded-full h-2">
@@ -267,7 +267,7 @@ export default function JobsPage() {
 
       {/* === Dialog Tạo mới === */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Tạo công việc mới (Admin)</DialogTitle></DialogHeader>
           <AdminJobForm form={form} setForm={setForm} isCreate />
           <DialogFooter>
@@ -279,7 +279,7 @@ export default function JobsPage() {
 
       {/* === Dialog Sửa === */}
       <Dialog open={showEdit} onOpenChange={(open) => { setShowEdit(open); if (!open) setEditingJob(null); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Sửa công việc #{editingJob?.id}</DialogTitle></DialogHeader>
           <AdminJobForm form={form} setForm={setForm} isCreate={false} />
           <DialogFooter>
@@ -322,44 +322,42 @@ function AdminJobForm({
 
   return (
     <div className="space-y-4">
-      {/* User ID - chỉ khi tạo mới */}
-      {isCreate && (
-        <div>
-          <Label>User ID (owner của job)</Label>
-          <Input type="number" value={form.user_id} onChange={(e) => setForm({ ...form, user_id: +e.target.value })} />
-          <p className="text-xs text-muted-foreground mt-1">
-            Credit sẽ trừ từ user này. Đặt 0 hoặc ID admin nếu muốn admin chịu chi phí.
-          </p>
+      {/* Row 1: User ID + Job type (khi tạo) hoặc Tiêu đề (khi sửa) */}
+      {isCreate ? (
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label>User ID (owner của job)</Label>
+            <Input type="number" value={form.user_id} onChange={(e) => setForm({ ...form, user_id: +e.target.value })} />
+            <p className="text-xs text-muted-foreground mt-1">
+              Credit sẽ trừ từ user này. Đặt 0 hoặc ID admin nếu muốn admin chịu chi phí.
+            </p>
+          </div>
+          <div>
+            <Label>Loại công việc</Label>
+            <Select value={form.job_type} onValueChange={(v) => v && setForm({ ...form, job_type: v, config: {} })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="viewlink">View Link</SelectItem>
+                <SelectItem value="keyword_seo">Keyword SEO</SelectItem>
+                <SelectItem value="backlink">Backlink</SelectItem>
+                <SelectItem value="social_media">Social Media</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
-      )}
+      ) : null}
 
       <div>
         <Label>Tiêu đề</Label>
         <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="VD: SEO từ khóa laptop giá rẻ" />
       </div>
 
-      {/* Loại job - chỉ khi tạo */}
-      {isCreate && (
-        <div>
-          <Label>Loại công việc</Label>
-          <Select value={form.job_type} onValueChange={(v) => v && setForm({ ...form, job_type: v, config: {} })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="viewlink">View Link</SelectItem>
-              <SelectItem value="keyword_seo">Keyword SEO</SelectItem>
-              <SelectItem value="backlink">Backlink</SelectItem>
-              <SelectItem value="social_media">Social Media</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
       <div>
         <Label>{form.job_type === "keyword_seo" ? "URL trang đích (trang cần tăng thứ hạng)" : "URL mục tiêu"}</Label>
         <Input value={form.target_url} onChange={(e) => setForm({ ...form, target_url: e.target.value })} placeholder="https://example.com" />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-4 gap-3">
         <div>
           <Label>Số lượt cần</Label>
           <Input type="number" value={form.target_count} onChange={(e) => setForm({ ...form, target_count: +e.target.value })} />
@@ -368,9 +366,6 @@ function AdminJobForm({
           <Label>Credit/lượt</Label>
           <Input type="number" value={form.credit_per_view} onChange={(e) => setForm({ ...form, credit_per_view: +e.target.value })} />
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
         <div>
           <Label>Ưu tiên (1-10)</Label>
           <Input type="number" min={1} max={10} value={form.priority} onChange={(e) => setForm({ ...form, priority: +e.target.value })} />
@@ -401,7 +396,7 @@ function AdminJobForm({
 
       {/* --- View Link --- */}
       {form.job_type === "viewlink" && (
-        <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
+        <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
           <p className="text-sm font-medium">Cấu hình View Link</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -429,7 +424,7 @@ function AdminJobForm({
 
       {/* --- Keyword SEO --- */}
       {form.job_type === "keyword_seo" && (
-        <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
+        <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
           <p className="text-sm font-medium">Cấu hình Keyword SEO</p>
           <p className="text-xs text-muted-foreground">
             Client sẽ mở Google → nhập từ khóa → tìm kết quả chứa domain mục tiêu → click vào → duyệt web tự nhiên.
@@ -496,7 +491,7 @@ function AdminJobForm({
 
       {/* --- Backlink --- */}
       {form.job_type === "backlink" && (
-        <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
+        <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
           <p className="text-sm font-medium">Cấu hình Backlink</p>
           <div>
             <Label className="text-xs">Anchor texts (mỗi dòng 1 anchor)</Label>
@@ -532,7 +527,7 @@ function AdminJobForm({
 
       {/* --- Social Media --- */}
       {form.job_type === "social_media" && (
-        <div className="space-y-3 border rounded-lg p-3 bg-muted/30">
+        <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
           <p className="text-sm font-medium">Cấu hình Social Media</p>
           <div>
             <Label className="text-xs">Nền tảng</Label>

@@ -126,9 +126,17 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     ico_path = os.path.join(out_dir, "icon.ico")
 
-    sizes = [256, 64, 48, 32, 16]
+    # Tạo icon với các kích thước chuẩn Windows
+    sizes = [256, 48, 32, 16]
     imgs = [create_icon(s) for s in sizes]
-    imgs[0].save(ico_path, format="ICO", append_images=imgs[1:])
+
+    # Lưu ICO với sizes parameter rõ ràng - tương thích tốt với Windows shortcut
+    imgs[0].save(
+        ico_path,
+        format="ICO",
+        append_images=imgs[1:],
+        sizes=[(s, s) for s in sizes],
+    )
     print(f"Icon saved: {ico_path} ({os.path.getsize(ico_path)} bytes)")
 
 

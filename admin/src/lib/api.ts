@@ -275,6 +275,38 @@ export interface DockerContainer {
   pids: string;
 }
 
+export interface SecurityOverview {
+  timestamp: string;
+  ssh: {
+    failed_attempts: number;
+    top_attacking_ips: { ip: string; count: number; is_banned: boolean }[];
+    hourly: { time: string; count: number }[];
+  };
+  firewall: {
+    active: boolean;
+    rules: string[];
+    raw: string;
+  };
+  fail2ban: {
+    active: boolean;
+    jails: { name: string; currently_banned: number; total_banned: number; banned_ips: string[] }[];
+    total_banned: number;
+    banned_ips: { ip: string; jail: string }[];
+  };
+  open_ports: { port: number; address: string; state: string; process: string }[];
+  connections: {
+    total: number;
+    by_port: Record<string, number>;
+  };
+  nginx: {
+    error_count: number;
+    status_4xx: number;
+    status_5xx: number;
+    recent_errors: string[];
+  };
+  recent_events: { time: string; ip: string; type: string; message: string }[];
+}
+
 // --- API calls ---
 export const authApi = {
   login: (username: string, password: string) =>
@@ -373,4 +405,9 @@ export const adminApi = {
   serverHistory: (minutes = 5) => api<{ data: ServerMetrics[]; count: number }>(`/api/v1/admin/server/metrics/history?minutes=${minutes}`, { token: t() }),
   serverProcesses: () => api<{ processes: ProcessInfo[] }>("/api/v1/admin/server/processes", { token: t() }),
   serverDocker: () => api<{ available: boolean; containers?: DockerContainer[]; error?: string }>("/api/v1/admin/server/docker", { token: t() }),
+
+  // Security
+  securityOverview: () => api<SecurityOverview>("/api/v1/admin/security/overview", { token: t() }),
+  banIp: (ip: string) => api<{ success: boolean; message?: string; error?: string }>("/api/v1/admin/security/ban-ip", { token: t(), method: "POST", body: JSON.stringify({ ip }) }),
+  unbanIp: (ip: string, jail = "sshd") => api<{ success: boolean; message?: string; error?: string }>("/api/v1/admin/security/unban-ip", { token: t(), method: "POST", body: JSON.stringify({ ip, jail }) }),
 };
