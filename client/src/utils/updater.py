@@ -37,11 +37,11 @@ async def check_for_update() -> dict | None:
             latest = data["tag_name"].lstrip("v")
 
             if latest > current:
-                # Tìm file .exe trong assets
+                # Tìm đúng RealSearch.exe (không lấy RealSearchSetup.exe)
                 download_url = None
                 file_size = 0
                 for asset in data.get("assets", []):
-                    if asset["name"].endswith(".exe"):
+                    if asset["name"] == "RealSearch.exe":
                         download_url = asset["browser_download_url"]
                         file_size = asset.get("size", 0)
                         break
