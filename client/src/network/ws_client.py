@@ -73,6 +73,10 @@ class WSClient:
             self._reconnect_delay = min(self._reconnect_delay * 1.5, 60)
 
     async def _do_connect(self):
+        # Refresh token trước khi kết nối để tránh Invalid token
+        if api._refresh_token:
+            await api._do_refresh()
+
         log.info(f"Đang kết nối {config.ws_url}...")
 
         async with websockets.connect(
