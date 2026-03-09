@@ -212,6 +212,9 @@ class JobDispatcher:
                         },
                     })
 
+                    # Deferred referral bonus: award referrer after referred user completes 10 tasks
+                    await self._check_referral_bonus(db, worker)
+
             await db.commit()
 
         # Update client state
@@ -219,6 +222,72 @@ class JobDispatcher:
             client.active_tasks.discard(task_id)
             client.tasks_completed += 1
             client.credits_earned += task.credits_earned if task else 0
+
+    async def _check_referral_bonus(self, db: AsyncSession, worker: User):
+        """Award referral bonus to referrer after referred user completes 10 tasks."""
+        if not worker.referred_by:
+            return
+
+        try:
+            # Count completed tasks by this worker
+            completed_count = (await db.execute(
+                select(func.count()).select_from(Task).where(
+                    Task.assigned_to == worker.id,
+                    Task.status == TaskStatus.COMPLETED,
+                )
+            )).scalar() or 0
+
+            if completed_count < 10:
+                return
+
+            # Check if referral bonus already awarded
+            existing = (await db.execute(
+                select(func.count()).select_from(CreditTransaction).where(
+                    CreditTransaction.user_id == worker.referred_by,
+                    CreditTransaction.type == CreditType.REFERRAL,
+                    CreditTransaction.reference_id == worker.id,
+                    CreditTransaction.reference_type == "referral",
+                )
+            )).scalar() or 0
+
+            if existing > 0:
+                return
+
+            # Award bonus to referrer
+            referrer = await db.get(User, worker.referred_by)
+            if not referrer:
+                return
+
+            bonus = 50
+            referrer.credit_balance += bonus
+            referrer.total_earned += bonus
+            txn = CreditTransaction(
+                user_id=referrer.id,
+                type=CreditType.REFERRAL,
+                amount=bonus,
+                balance_after=referrer.credit_balance,
+                description=f"Giới thiệu thành công: {worker.username} (đã hoàn thành 10 tasks)",
+                reference_type="referral",
+                reference_id=worker.id,
+            )
+            db.add(txn)
+
+            logger.info(
+                f"Referral bonus: +{bonus} credits to user #{referrer.id} "
+                f"for referring user #{worker.id} ({worker.username})"
+            )
+
+            # Notify referrer
+            await manager.send_to_user(referrer.id, {
+                "type": "credit_update",
+                "data": {
+                    "balance": referrer.credit_balance,
+                    "earned": bonus,
+                    "reason": f"Thưởng giới thiệu: {worker.username}",
+                },
+            })
+        except Exception as e:
+            logger.error(f"Error checking referral bonus: {e}")
 
     async def handle_task_failed(
         self, session_id: str, task_id: int, error_code: str, error_message: str

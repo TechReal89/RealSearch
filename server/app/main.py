@@ -8,6 +8,7 @@ from sqlalchemy import text
 
 from app.api.v1.router import api_router
 from app.database import engine
+from app.services.sepay_poller import sepay_poller
 from app.ws.handler import handle_websocket
 from app.ws.job_dispatcher import dispatcher
 from app.ws.manager import manager
@@ -27,13 +28,23 @@ async def lifespan(app: FastAPI):
     dispatch_task = asyncio.create_task(dispatcher.start_dispatch_loop())
     logger.info("Job dispatcher started")
 
+    # Start SePay polling for auto-confirm payments
+    poller_task = asyncio.create_task(sepay_poller.start_polling())
+    logger.info("SePay poller started")
+
     yield
 
     # Shutdown
     dispatcher.stop()
+    sepay_poller.stop()
     dispatch_task.cancel()
+    poller_task.cancel()
     try:
         await dispatch_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await poller_task
     except asyncio.CancelledError:
         pass
     await engine.dispose()

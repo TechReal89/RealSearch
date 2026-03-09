@@ -305,6 +305,10 @@ export interface SecurityOverview {
     recent_errors: string[];
   };
   recent_events: { time: string; ip: string; type: string; message: string }[];
+  whitelist: {
+    whitelist: { ip: string; note: string }[];
+    successful_ips: { ip: string; user: string; last_login: string; whitelisted: boolean }[];
+  };
 }
 
 // --- API calls ---
@@ -410,4 +414,6 @@ export const adminApi = {
   securityOverview: () => api<SecurityOverview>("/api/v1/admin/security/overview", { token: t() }),
   banIp: (ip: string) => api<{ success: boolean; message?: string; error?: string }>("/api/v1/admin/security/ban-ip", { token: t(), method: "POST", body: JSON.stringify({ ip }) }),
   unbanIp: (ip: string, jail = "sshd") => api<{ success: boolean; message?: string; error?: string }>("/api/v1/admin/security/unban-ip", { token: t(), method: "POST", body: JSON.stringify({ ip, jail }) }),
+  whitelistAdd: (ip: string, note = "") => api<{ success: boolean; message?: string; error?: string }>("/api/v1/admin/security/whitelist/add", { token: t(), method: "POST", body: JSON.stringify({ ip, note }) }),
+  whitelistRemove: (ip: string) => api<{ success: boolean; message?: string; error?: string }>("/api/v1/admin/security/whitelist/remove", { token: t(), method: "POST", body: JSON.stringify({ ip }) }),
 };

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import decode_token
 from app.database import async_session
 from app.models.session import ClientSession
+from app.models.tier import MembershipTierConfig
 from app.models.user import User
 from app.ws.job_dispatcher import dispatcher
 from app.ws.manager import ClientConnection, manager
@@ -124,7 +125,19 @@ async def handle_websocket(websocket: WebSocket):
 
         # Check max clients per user
         existing_sessions = manager.get_user_sessions(user_data["id"])
-        max_clients = 3  # TODO: get from tier config
+        max_clients = 3  # default fallback
+        try:
+            async with async_session() as tier_db:
+                tier_result = await tier_db.execute(
+                    select(MembershipTierConfig).where(
+                        MembershipTierConfig.name == user_data["tier"]
+                    )
+                )
+                tier_cfg = tier_result.scalar_one_or_none()
+                if tier_cfg:
+                    max_clients = tier_cfg.max_clients
+        except Exception:
+            pass  # use default
         if len(existing_sessions) >= max_clients:
             await websocket.send_json({
                 "type": "auth_result",

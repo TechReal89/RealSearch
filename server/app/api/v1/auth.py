@@ -1,8 +1,9 @@
 import secrets
 import string
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import or_, select
+from fastapi import APIRouter, Depends, Request
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import BadRequestError, ConflictError, UnauthorizedError
@@ -18,6 +19,7 @@ from app.dependencies import get_current_user
 from app.models.credit import CreditTransaction, CreditType
 from app.models.user import User
 from app.schemas.user import (
+    ChangePasswordRequest,
     MeResponse,
     RefreshTokenRequest,
     TokenResponse,
@@ -36,7 +38,24 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=TokenResponse, status_code=201)
-async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
+async def register(
+    data: UserRegister,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    # Anti-abuse: IP rate limit (max 3 registrations per IP per 24h)
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() or request.client.host
+    if client_ip:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
+        ip_count = (await db.execute(
+            select(func.count()).select_from(User).where(
+                User.registration_ip == client_ip,
+                User.created_at >= cutoff,
+            )
+        )).scalar() or 0
+        if ip_count >= 3:
+            raise BadRequestError("Quá nhiều tài khoản được tạo từ địa chỉ IP này. Vui lòng thử lại sau.")
+
     result = await db.execute(
         select(User).where(or_(User.email == data.email, User.username == data.username))
     )
@@ -48,7 +67,6 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
 
     # Xử lý referral code
     referred_by = None
-    referrer = None
     if data.referral_code:
         ref_result = await db.execute(
             select(User).where(User.referral_code == data.referral_code.upper())
@@ -75,23 +93,12 @@ async def register(data: UserRegister, db: AsyncSession = Depends(get_db)):
         full_name=data.full_name,
         referral_code=referral_code,
         referred_by=referred_by,
+        registration_ip=client_ip,
     )
     db.add(user)
 
-    # Thưởng credit cho người giới thiệu
-    if referrer:
-        bonus = 50  # credit_referral_bonus mặc định
-        referrer.credit_balance += bonus
-        referrer.total_earned += bonus
-        txn = CreditTransaction(
-            user_id=referrer.id,
-            type=CreditType.REFERRAL,
-            amount=bonus,
-            balance_after=referrer.credit_balance,
-            description=f"Giới thiệu thành công: {data.username}",
-            reference_type="referral",
-        )
-        db.add(txn)
+    # Referral bonus: KHÔNG trao ngay - chỉ trao sau khi user mới hoàn thành 10 tasks
+    # (xử lý trong job_dispatcher.py handle_task_completed)
 
     await db.commit()
     await db.refresh(user)
@@ -145,3 +152,18 @@ async def refresh_token(data: RefreshTokenRequest, db: AsyncSession = Depends(ge
 @router.get("/me", response_model=MeResponse)
 async def get_me(current_user: User = Depends(get_current_user)):
     return MeResponse(user=UserResponse.model_validate(current_user))
+
+
+@router.post("/change-password")
+async def change_password(
+    data: ChangePasswordRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Đổi mật khẩu."""
+    if not verify_password(data.current_password, current_user.hashed_password):
+        raise BadRequestError("Mật khẩu hiện tại không đúng")
+
+    current_user.hashed_password = hash_password(data.new_password)
+    await db.commit()
+    return {"detail": "Đổi mật khẩu thành công"}

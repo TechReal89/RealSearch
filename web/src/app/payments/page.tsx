@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { UserLayout } from "@/components/layout/user-layout";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { paymentApi, creditApi } from "@/lib/api";
 import { toast } from "sonner";
 import {
-  Wallet, Sparkles, Star, Zap, Crown, Copy, CheckCircle, Clock, XCircle, RotateCcw, X, Coins, ArrowRight, Shield, Flame,
+  Wallet, Sparkles, Star, Zap, Crown, Copy, CheckCircle, Clock, XCircle, RotateCcw, X, Coins, ArrowRight, Shield, Flame, Loader2, Timer,
 } from "lucide-react";
 
 interface TransferInfo {
@@ -17,6 +17,7 @@ interface TransferInfo {
   amount: number;
   content: string;
   note: string;
+  qr_url?: string;
 }
 
 const badgeLabels: Record<string, { text: string; icon: typeof Star; style: string }> = {
@@ -25,6 +26,9 @@ const badgeLabels: Record<string, { text: string; icon: typeof Star; style: stri
   hot: { text: "HOT", icon: Flame, style: "badge-hot" },
 };
 
+const COUNTDOWN_SECONDS = 5 * 60; // 5 minutes
+const POLL_INTERVAL = 5000; // 5 seconds
+
 export default function PaymentsPage() {
   const [packages, setPackages] = useState<Array<Record<string, unknown>>>([]);
   const [channels, setChannels] = useState<Array<Record<string, unknown>>>([]);
@@ -32,12 +36,90 @@ export default function PaymentsPage() {
   const [transferInfo, setTransferInfo] = useState<TransferInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [copiedField, setCopiedField] = useState("");
+  const [pendingPaymentId, setPendingPaymentId] = useState<number | null>(null);
+  const [countdown, setCountdown] = useState(0);
+  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    if (countdownRef.current) {
+      clearInterval(countdownRef.current);
+      countdownRef.current = null;
+    }
+  }, []);
+
+  const refreshData = useCallback(() => {
+    paymentApi.history("page_size=20").then((d) => setHistory(d.payments || [])).catch(() => {});
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
+
+  const startPolling = useCallback((paymentId: number) => {
+    stopPolling();
+    setCountdown(COUNTDOWN_SECONDS);
+    setPaymentConfirmed(false);
+
+    // Countdown timer
+    countdownRef.current = setInterval(() => {
+      setCountdown((prev) => {
+        if (prev <= 1) {
+          // Timeout - stop polling but keep transfer info visible
+          stopPolling();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    // Poll payment status
+    pollRef.current = setInterval(async () => {
+      try {
+        const payment = await paymentApi.get(paymentId);
+        if (payment.status === "completed") {
+          stopPolling();
+          setPaymentConfirmed(true);
+          setPendingPaymentId(null);
+          toast.success("Thanh toán thành công! Credit đã được cộng vào tài khoản.", {
+            duration: 6000,
+          });
+          // Refresh data
+          refreshData();
+          // Auto-close transfer info after 5 seconds
+          setTimeout(() => {
+            setTransferInfo(null);
+            setPaymentConfirmed(false);
+          }, 5000);
+        } else if (payment.status === "failed") {
+          stopPolling();
+          setPendingPaymentId(null);
+          toast.error("Thanh toán thất bại. Vui lòng thử lại.");
+          refreshData();
+        }
+      } catch {
+        // Ignore polling errors
+      }
+    }, POLL_INTERVAL);
+  }, [stopPolling, refreshData]);
+
+  const formatCountdown = (seconds: number) => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  };
 
   useEffect(() => {
     creditApi.packages().then(setPackages).catch(() => {});
     paymentApi.channels().then((d) => setChannels(d.channels || d || [])).catch(() => {});
-    paymentApi.history("page_size=20").then((d) => setHistory(d.payments || [])).catch(() => {});
-  }, []);
+    refreshData();
+  }, [refreshData]);
 
   const handleBuy = async (pkg: Record<string, unknown>) => {
     setLoading(true);
@@ -60,12 +142,14 @@ export default function PaymentsPage() {
 
       if (data.transfer_info) {
         setTransferInfo(data.transfer_info);
+        setPendingPaymentId(data.id);
+        startPolling(data.id);
         toast.success("Đã tạo đơn nạp. Vui lòng chuyển khoản theo hướng dẫn.");
       } else {
         toast.success(`Đã tạo đơn nạp #${data.id}. Vui lòng chờ xác nhận.`);
       }
 
-      paymentApi.history("page_size=20").then((d) => setHistory(d.payments || []));
+      refreshData();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Lỗi");
     } finally {
@@ -174,46 +258,123 @@ export default function PaymentsPage() {
 
         {/* Transfer Info */}
         {transferInfo && (
-          <div className="luxury-card-premium rounded-xl overflow-hidden border border-[rgba(212,168,75,0.2)] gold-glow">
-            <div className="gold-gradient px-5 py-3 flex items-center justify-between">
+          <div className={`luxury-card-premium rounded-xl overflow-hidden border ${
+            paymentConfirmed
+              ? "border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.15)]"
+              : "border-[rgba(212,168,75,0.2)] gold-glow"
+          } transition-all duration-500`}>
+            <div className={`${paymentConfirmed ? "bg-emerald-500" : "gold-gradient"} px-5 py-3 flex items-center justify-between`}>
               <div className="flex items-center gap-2">
-                <Shield className="w-5 h-5 text-[#09090d]" />
-                <h3 className="font-bold text-[#09090d]">Thông tin chuyển khoản</h3>
+                {paymentConfirmed ? (
+                  <CheckCircle className="w-5 h-5 text-white" />
+                ) : (
+                  <Shield className="w-5 h-5 text-[#09090d]" />
+                )}
+                <h3 className={`font-bold ${paymentConfirmed ? "text-white" : "text-[#09090d]"}`}>
+                  {paymentConfirmed ? "Thanh toán thành công!" : "Thông tin chuyển khoản"}
+                </h3>
               </div>
-              <button onClick={() => setTransferInfo(null)} className="text-[#09090d] hover:opacity-70 transition-opacity">
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-3">
+                {/* Countdown Timer */}
+                {!paymentConfirmed && countdown > 0 && (
+                  <div className="flex items-center gap-1.5 bg-[rgba(0,0,0,0.15)] px-2.5 py-1 rounded-lg">
+                    <Timer className="w-3.5 h-3.5 text-[#09090d]" />
+                    <span className="text-sm font-mono font-bold text-[#09090d]">
+                      {formatCountdown(countdown)}
+                    </span>
+                  </div>
+                )}
+                {/* Polling indicator */}
+                {!paymentConfirmed && pendingPaymentId && countdown > 0 && (
+                  <div className="flex items-center gap-1.5 bg-[rgba(0,0,0,0.15)] px-2.5 py-1 rounded-lg">
+                    <Loader2 className="w-3.5 h-3.5 text-[#09090d] animate-spin" />
+                    <span className="text-[11px] font-medium text-[#09090d]">Đang chờ...</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => {
+                    setTransferInfo(null);
+                    setPendingPaymentId(null);
+                    setPaymentConfirmed(false);
+                    stopPolling();
+                  }}
+                  className={`${paymentConfirmed ? "text-white" : "text-[#09090d]"} hover:opacity-70 transition-opacity`}
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             <div className="p-5">
-              <div className="space-y-0">
-                {[
-                  { label: "Ngân hàng", value: transferInfo.bank_name, key: "bank" },
-                  { label: "Số tài khoản", value: transferInfo.account_number, key: "acc", mono: true },
-                  { label: "Chủ tài khoản", value: transferInfo.account_name, key: "name" },
-                  { label: "Số tiền", value: `${transferInfo.amount.toLocaleString()} VND`, key: "amount", highlight: true },
-                  { label: "Nội dung CK", value: transferInfo.content, key: "content", mono: true, highlight: true },
-                ].map((item) => (
-                  <div key={item.key} className="flex items-center justify-between py-3 border-b border-[rgba(255,255,255,0.03)]">
-                    <span className="text-sm text-[#8a8999]">{item.label}</span>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-sm font-semibold ${item.mono ? "font-mono stat-value" : ""} ${item.highlight ? "text-[#d4a84b]" : "text-[#f5f0e8]"}`}>
-                        {item.value}
-                      </span>
-                      <button
-                        onClick={() => copyText(String(item.value).replace(/[,. ]/g, "").replace("VND", ""), item.key)}
-                        className="text-[#555] hover:text-[#d4a84b] transition-colors"
-                      >
-                        {copiedField === item.key ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
-                      </button>
+              {paymentConfirmed ? (
+                <div className="text-center py-8">
+                  <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto mb-4 animate-bounce">
+                    <CheckCircle className="w-10 h-10 text-emerald-400" />
+                  </div>
+                  <h3 className="text-xl font-bold text-emerald-400 mb-2">Credit đã được cộng!</h3>
+                  <p className="text-sm text-[#8a8999]">Số dư credit của bạn đã được cập nhật tự động.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col md:flex-row gap-6">
+                  {/* QR Code */}
+                  {transferInfo.qr_url && (
+                    <div className="flex flex-col items-center gap-3 flex-shrink-0">
+                      <div className="bg-white rounded-xl p-2">
+                        <img
+                          src={transferInfo.qr_url}
+                          alt="QR Code chuyển khoản"
+                          className="w-[200px] h-auto rounded-lg"
+                        />
+                      </div>
+                      <p className="text-[10px] text-[#8a8999] uppercase tracking-wider">Quét mã QR để chuyển khoản</p>
+                    </div>
+                  )}
+
+                  {/* Transfer details */}
+                  <div className="flex-1">
+                    <div className="space-y-0">
+                      {[
+                        { label: "Ngân hàng", value: transferInfo.bank_name, key: "bank" },
+                        { label: "Số tài khoản", value: transferInfo.account_number, key: "acc", mono: true },
+                        { label: "Chủ tài khoản", value: transferInfo.account_name, key: "name" },
+                        { label: "Số tiền", value: `${transferInfo.amount.toLocaleString()} VND`, key: "amount", highlight: true },
+                        { label: "Nội dung CK", value: transferInfo.content, key: "content", mono: true, highlight: true },
+                      ].map((item) => (
+                        <div key={item.key} className="flex items-center justify-between py-3 border-b border-[rgba(255,255,255,0.03)]">
+                          <span className="text-sm text-[#8a8999]">{item.label}</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-sm font-semibold ${item.mono ? "font-mono stat-value" : ""} ${item.highlight ? "text-[#d4a84b]" : "text-[#f5f0e8]"}`}>
+                              {item.value}
+                            </span>
+                            <button
+                              onClick={() => copyText(String(item.value).replace(/[,. ]/g, "").replace("VND", ""), item.key)}
+                              className="text-[#555] hover:text-[#d4a84b] transition-colors"
+                            >
+                              {copiedField === item.key ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Status message */}
+                    <div className="mt-4 p-3.5 rounded-xl glass-gold">
+                      {countdown > 0 ? (
+                        <div className="flex items-start gap-2">
+                          <Loader2 className="w-4 h-4 text-[#d4a84b] animate-spin flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-[#d4a84b] leading-relaxed">
+                            Hệ thống đang chờ xác nhận thanh toán. Credit sẽ được cộng tự động ngay khi nhận được chuyển khoản.
+                            Thời gian còn lại: <span className="font-bold font-mono">{formatCountdown(countdown)}</span>
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[#d4a84b] leading-relaxed">
+                          Hết thời gian chờ tự động. Nếu bạn đã chuyển khoản, credit sẽ được cộng khi hệ thống xác nhận.
+                          Vui lòng kiểm tra lịch sử giao dịch bên dưới.
+                        </p>
+                      )}
                     </div>
                   </div>
-                ))}
-              </div>
-              <div className="mt-4 p-3.5 rounded-xl glass-gold">
-                <p className="text-xs text-[#d4a84b] leading-relaxed">
-                  Chuyển khoản đúng số tiền và nội dung để hệ thống tự động xác nhận. Credit sẽ được cộng trong 1-5 phút.
-                </p>
-              </div>
+                </div>
+              )}
             </div>
           </div>
         )}

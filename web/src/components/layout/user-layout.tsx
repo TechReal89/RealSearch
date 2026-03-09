@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard, Briefcase, Coins, Wallet, Package, Download, LogOut, Crown, Menu, X,
-  Shield, Gem, Award, Star,
+  LayoutDashboard, Briefcase, Coins, Wallet, LogOut, Crown, Menu, X,
+  Shield, Gem, Award, Star, User, Gift, Download, ChevronDown,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Logo } from "@/components/ui/logo";
 
 const tierConfig: Record<string, { label: string; color: string; bg: string; borderColor: string; icon: typeof Crown; glow: string }> = {
@@ -46,19 +46,39 @@ const tierConfig: Record<string, { label: string; color: string; bg: string; bor
   },
 };
 
-const navItems = [
+const mainNavItems = [
   { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard },
   { href: "/jobs", label: "Công việc", icon: Briefcase },
   { href: "/credits", label: "Credits", icon: Coins },
   { href: "/payments", label: "Nạp tiền", icon: Wallet },
-  { href: "/packages", label: "Gói VIP", icon: Package },
+  { href: "/upgrade", label: "Nâng cấp", icon: Crown },
+];
+
+const userMenuItems = [
+  { href: "/profile", label: "Hồ sơ", icon: User },
+  { href: "/referral", label: "Giới thiệu bạn bè", icon: Gift },
   { href: "/download", label: "Tải app", icon: Download },
 ];
+
+const allNavItems = [...mainNavItems, ...userMenuItems];
 
 export function UserLayout({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setUserMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   if (loading) {
     return (
@@ -78,53 +98,52 @@ export function UserLayout({ children }: { children: React.ReactNode }) {
 
   const tier = tierConfig[user.tier] || tierConfig.bronze;
   const TierIcon = tier.icon;
+  const isUserMenuActive = userMenuItems.some((item) => pathname === item.href);
 
   return (
     <div className="min-h-screen bg-[#09090d]">
       {/* Header */}
       <header className="glass-dark border-b border-[rgba(212,168,75,0.08)] sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <div className="h-16 flex items-center justify-between">
-            {/* Logo + Nav */}
-            <div className="flex items-center gap-6 lg:gap-8">
-              <Link href="/dashboard" className="flex items-center gap-2.5 group">
-                <div className="relative animate-pulse-gold rounded-xl">
-                  <Logo size={36} />
-                </div>
-                <div className="hidden sm:block">
-                  <span className="text-lg font-bold gold-shimmer tracking-tight">RealSearch</span>
-                  <div className="h-px w-0 group-hover:w-full gold-gradient transition-all duration-300" />
-                </div>
-              </Link>
+          <div className="h-16 flex items-center gap-4">
+            {/* Logo */}
+            <Link href="/dashboard" className="flex items-center gap-2.5 group flex-shrink-0">
+              <div className="relative animate-pulse-gold rounded-xl">
+                <Logo size={36} />
+              </div>
+              <div className="hidden sm:block">
+                <span className="text-lg font-bold gold-shimmer tracking-tight">RealSearch</span>
+                <div className="h-px w-0 group-hover:w-full gold-gradient transition-all duration-300" />
+              </div>
+            </Link>
 
-              {/* Desktop Nav */}
-              <nav className="hidden lg:flex items-center gap-0.5">
-                {navItems.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`relative flex items-center gap-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
-                        isActive
-                          ? "text-[#d4a84b] bg-[rgba(212,168,75,0.1)]"
-                          : "text-[#8a8999] hover:text-[#f5f0e8] hover:bg-[rgba(255,255,255,0.04)]"
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {item.label}
-                      {isActive && (
-                        <div className="absolute bottom-0 left-3 right-3 h-px gold-gradient" />
-                      )}
-                    </Link>
-                  );
-                })}
-              </nav>
-            </div>
+            {/* Desktop Nav - centered, evenly spaced */}
+            <nav className="hidden lg:flex items-center justify-center flex-1 gap-1">
+              {mainNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname === item.href;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                      isActive
+                        ? "text-[#d4a84b] bg-[rgba(212,168,75,0.1)]"
+                        : "text-[#8a8999] hover:text-[#f5f0e8] hover:bg-[rgba(255,255,255,0.04)]"
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {item.label}
+                    {isActive && (
+                      <div className="absolute bottom-0 left-3 right-3 h-px gold-gradient" />
+                    )}
+                  </Link>
+                );
+              })}
+            </nav>
 
             {/* Right side */}
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               {/* Credits Display */}
               <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[rgba(212,168,75,0.06)] border border-[rgba(212,168,75,0.12)] gold-glow-subtle">
                 <div className="w-5 h-5 rounded-full gold-gradient flex items-center justify-center">
@@ -141,22 +160,70 @@ export function UserLayout({ children }: { children: React.ReactNode }) {
                 <span className={`text-xs font-bold uppercase tracking-wider ${tier.color}`}>{tier.label}</span>
               </div>
 
-              {/* User */}
-              <span className="text-sm text-[#8a8999] hidden md:block font-medium">{user.username}</span>
+              {/* User Dropdown */}
+              <div className="relative hidden md:block" ref={menuRef}>
+                <button
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    isUserMenuActive || userMenuOpen
+                      ? "text-[#d4a84b] bg-[rgba(212,168,75,0.1)]"
+                      : "text-[#8a8999] hover:text-[#f5f0e8] hover:bg-[rgba(255,255,255,0.04)]"
+                  }`}
+                >
+                  <div className="w-6 h-6 rounded-full bg-[rgba(212,168,75,0.1)] flex items-center justify-center">
+                    <User className="w-3.5 h-3.5 text-[#d4a84b]" />
+                  </div>
+                  <span className="max-w-[80px] truncate">{user.username}</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${userMenuOpen ? "rotate-180" : ""}`} />
+                </button>
 
-              {/* Divider */}
-              <div className="hidden md:block w-px h-5 bg-[rgba(255,255,255,0.06)]" />
+                {/* Dropdown Menu */}
+                {userMenuOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-[rgba(212,168,75,0.1)] bg-[#111118] shadow-2xl shadow-black/50 overflow-hidden z-50">
+                    {/* User info header */}
+                    <div className="px-4 py-3 border-b border-[rgba(255,255,255,0.04)]">
+                      <p className="text-sm font-semibold text-[#f5f0e8]">{user.full_name || user.username}</p>
+                      <p className="text-xs text-[#555] truncate">{user.email}</p>
+                    </div>
 
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={logout}
-                className="text-[#8a8999] hover:text-[#f5f0e8] hover:bg-[rgba(255,255,255,0.05)]"
-              >
-                <LogOut className="w-4 h-4" />
-              </Button>
+                    {/* Menu items */}
+                    <div className="py-1.5">
+                      {userMenuItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = pathname === item.href;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setUserMenuOpen(false)}
+                            className={`flex items-center gap-3 px-4 py-2.5 text-sm transition-all ${
+                              isActive
+                                ? "text-[#d4a84b] bg-[rgba(212,168,75,0.08)]"
+                                : "text-[#8a8999] hover:text-[#f5f0e8] hover:bg-[rgba(255,255,255,0.03)]"
+                            }`}
+                          >
+                            <Icon className="w-4 h-4" />
+                            {item.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
 
-              {/* Mobile menu */}
+                    {/* Logout */}
+                    <div className="border-t border-[rgba(255,255,255,0.04)] py-1.5">
+                      <button
+                        onClick={() => { setUserMenuOpen(false); logout(); }}
+                        className="flex items-center gap-3 px-4 py-2.5 text-sm text-[#8a8999] hover:text-rose-400 hover:bg-[rgba(255,255,255,0.03)] w-full transition-all"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Đăng xuất
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile menu button */}
               <button
                 className="lg:hidden text-[#8a8999] hover:text-[#f5f0e8] p-1"
                 onClick={() => setMobileOpen(!mobileOpen)}
@@ -182,9 +249,9 @@ export function UserLayout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
 
-            {/* Mobile nav items */}
+            {/* Mobile nav items - all items */}
             <div className="space-y-1">
-              {navItems.map((item) => {
+              {allNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href;
                 return (
@@ -204,6 +271,17 @@ export function UserLayout({ children }: { children: React.ReactNode }) {
                   </Link>
                 );
               })}
+
+              {/* Mobile logout */}
+              <div className="pt-3 mt-3 border-t border-[rgba(255,255,255,0.04)]">
+                <button
+                  onClick={() => { setMobileOpen(false); logout(); }}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-[#8a8999] hover:text-rose-400 hover:bg-[rgba(255,255,255,0.03)] w-full transition-all"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Đăng xuất
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -314,21 +314,124 @@ def create_momo_payment_request(
 
 
 def _extract_transaction_id(content: str) -> str | None:
-    """Trích mã giao dịch RS-XXXXXXXXXXXX từ nội dung chuyển khoản."""
-    match = re.search(r"RS-[A-Z0-9]{12}", content.upper())
+    """
+    Trích mã giao dịch RS-XXXXXXXXXXXX từ nội dung chuyển khoản.
+    Ngân hàng thường bỏ ký tự đặc biệt nên cần match cả:
+      - RS-B6FDA6EC5155 (có dấu -)
+      - RSB6FDA6EC5155  (không có dấu -)
+    """
+    upper = content.upper()
+    # Thử match có dấu - trước
+    match = re.search(r"RS-([A-Z0-9]{12})", upper)
     if match:
         return match.group(0)
+    # Match không có dấu - (ngân hàng strip ký tự đặc biệt)
+    match = re.search(r"RS([A-Z0-9]{12})", upper)
+    if match:
+        # Trả về format chuẩn RS-XXXXXXXXXXXX để match DB
+        return f"RS-{match.group(1)}"
     return None
 
 
 def generate_bank_transfer_info(payment: Payment, channel_config: dict) -> dict:
-    """Tạo thông tin chuyển khoản ngân hàng cho user."""
+    """Tạo thông tin chuyển khoản ngân hàng cho user, kèm VietQR URL."""
+    bank_name = channel_config.get("bank_name", "")
+    account_number = channel_config.get("account_number", "")
+    account_name = channel_config.get("account_name", "")
+    amount = int(payment.amount)
+    content = payment.transaction_id
+
+    # Generate VietQR URL
+    qr_url = _generate_vietqr_url(
+        bank_name=bank_name,
+        account_number=account_number,
+        account_name=account_name,
+        amount=amount,
+        content=content,
+        bank_code=channel_config.get("bank_code"),
+    )
+
     return {
-        "bank_name": channel_config.get("bank_name", ""),
-        "account_number": channel_config.get("account_number", ""),
-        "account_name": channel_config.get("account_name", ""),
+        "bank_name": bank_name,
+        "account_number": account_number,
+        "account_name": account_name,
         "branch": channel_config.get("branch", ""),
         "amount": float(payment.amount),
-        "content": payment.transaction_id,
-        "note": f"Chuyển khoản đúng số tiền {int(payment.amount):,} VND với nội dung: {payment.transaction_id}",
+        "content": content,
+        "qr_url": qr_url,
+        "note": f"Chuyển khoản đúng số tiền {amount:,} VND với nội dung: {content}",
     }
+
+
+# Map tên ngân hàng phổ biến sang mã VietQR
+_BANK_CODE_MAP = {
+    "bidv": "BIDV",
+    "vietcombank": "VCB",
+    "vcb": "VCB",
+    "techcombank": "TCB",
+    "tcb": "TCB",
+    "mb bank": "MB",
+    "mb": "MB",
+    "mbbank": "MB",
+    "vietinbank": "ICB",
+    "icb": "ICB",
+    "acb": "ACB",
+    "sacombank": "STB",
+    "stb": "STB",
+    "tpbank": "TPB",
+    "tpb": "TPB",
+    "vpbank": "VPB",
+    "vpb": "VPB",
+    "agribank": "AGR",
+    "vib": "VIB",
+    "shb": "SHB",
+    "hdbank": "HDB",
+    "ocb": "OCB",
+    "msb": "MSB",
+    "eximbank": "EIB",
+    "seabank": "SEAB",
+    "lpb": "LPB",
+    "lienvietpostbank": "LPB",
+    "dong a bank": "DOB",
+    "bac a bank": "BAB",
+    "pvcombank": "PVCOM",
+    "viet a bank": "VAB",
+    "nam a bank": "NAB",
+    "kienlongbank": "KLB",
+    "cake": "CAKE",
+    "ubank": "Ubank",
+}
+
+
+def _generate_vietqr_url(
+    bank_name: str,
+    account_number: str,
+    account_name: str,
+    amount: int,
+    content: str,
+    bank_code: str | None = None,
+) -> str | None:
+    """Tạo VietQR URL từ thông tin chuyển khoản."""
+    if not account_number:
+        return None
+
+    # Determine bank code
+    code = bank_code
+    if not code:
+        normalized = bank_name.lower().strip()
+        code = _BANK_CODE_MAP.get(normalized)
+        # Try partial match
+        if not code:
+            for key, val in _BANK_CODE_MAP.items():
+                if key in normalized or normalized in key:
+                    code = val
+                    break
+
+    if not code:
+        return None
+
+    from urllib.parse import quote
+    return (
+        f"https://img.vietqr.io/image/{code}-{account_number}-compact2.png"
+        f"?amount={amount}&addInfo={quote(content)}&accountName={quote(account_name)}"
+    )

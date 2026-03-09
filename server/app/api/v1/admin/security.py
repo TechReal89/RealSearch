@@ -78,3 +78,27 @@ async def unban_ip(data: dict, admin: User = Depends(get_admin_user)):
     result = await _agent_post("/unban-ip", data)
     logger.info(f"Admin {admin.username} unbanned IP: {data.get('ip')}")
     return result
+
+
+@router.get("/whitelist")
+async def get_whitelist(admin: User = Depends(get_admin_user)):
+    """Get SSH whitelist and successful login IPs."""
+    return await _agent_get("/whitelist")
+
+
+@router.post("/whitelist/add")
+async def add_to_whitelist(data: dict, admin: User = Depends(get_admin_user)):
+    """Add IP to SSH whitelist."""
+    result = await _agent_post("/whitelist/add", data)
+    if result.get("success"):
+        logger.info(f"Admin {admin.username} whitelisted IP: {data.get('ip')}")
+    return result
+
+
+@router.post("/whitelist/remove")
+async def remove_from_whitelist(data: dict, admin: User = Depends(get_admin_user)):
+    """Remove IP from SSH whitelist."""
+    result = await _agent_post("/whitelist/remove", data)
+    if result.get("success"):
+        logger.info(f"Admin {admin.username} removed IP from whitelist: {data.get('ip')}")
+    return result

@@ -50,5 +50,9 @@ export function useAuth(requireAuth = true) {
     router.push("/");
   };
 
-  return { user, loading, logout, setUser };
+  const refreshUser = () => {
+    authApi.me().then((data) => setUser(data.user)).catch(() => {});
+  };
+
+  return { user, loading, logout, setUser, refreshUser };
 }

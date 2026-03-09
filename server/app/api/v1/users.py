@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.tier import MembershipTierConfig
 from app.models.user import User
 from app.schemas.user import UserResponse
 
@@ -41,14 +43,27 @@ async def get_referral_info(
 ):
     """Lấy thông tin referral của user."""
     from sqlalchemy import func, select
+    from app.models.credit import CreditTransaction, CreditType
+    from app.models.task import Task, TaskStatus
 
     # Đếm số người đã giới thiệu
     referred_count = (await db.execute(
         select(func.count()).select_from(User).where(User.referred_by == current_user.id)
     )).scalar() or 0
 
+    # Đếm số referral đã nhận thưởng (có CreditTransaction REFERRAL)
+    rewarded_count = (await db.execute(
+        select(func.count()).select_from(CreditTransaction).where(
+            CreditTransaction.user_id == current_user.id,
+            CreditTransaction.type == CreditType.REFERRAL,
+            CreditTransaction.reference_type == "referral",
+        )
+    )).scalar() or 0
+
+    # Pending = referred but not yet rewarded
+    pending_count = max(0, referred_count - rewarded_count)
+
     # Tổng credit từ referral
-    from app.models.credit import CreditTransaction, CreditType
     total_referral_credit = (await db.execute(
         select(func.coalesce(func.sum(CreditTransaction.amount), 0))
         .where(
@@ -59,9 +74,12 @@ async def get_referral_info(
 
     return {
         "referral_code": current_user.referral_code,
-        "referral_link": f"https://realsearch.techreal.vn/register?ref={current_user.referral_code}",
+        "referral_link": f"https://realsearch.techreal.vn/?ref={current_user.referral_code}",
         "referred_count": referred_count,
+        "rewarded_count": rewarded_count,
+        "pending_count": pending_count,
         "total_referral_credit": int(total_referral_credit),
+        "required_tasks": 10,
     }
 
 
@@ -97,3 +115,31 @@ async def get_user_stats(
         "active_jobs": active_jobs_result.scalar() or 0,
         "tasks_completed": tasks_result.scalar() or 0,
     }
+
+
+@router.get("/tiers")
+async def list_available_tiers(db: AsyncSession = Depends(get_db)):
+    """Lấy danh sách tier và giá cho user."""
+    result = await db.execute(
+        select(MembershipTierConfig)
+        .where(MembershipTierConfig.is_active == True)
+        .order_by(MembershipTierConfig.sort_order)
+    )
+    tiers = result.scalars().all()
+    return [
+        {
+            "id": t.id, "name": t.name, "display_name": t.display_name,
+            "color": t.color, "price_monthly": float(t.price_monthly),
+            "price_yearly": float(t.price_yearly), "priority_level": t.priority_level,
+            "daily_credit_limit": t.daily_credit_limit, "max_jobs": t.max_jobs,
+            "max_urls_per_job": t.max_urls_per_job, "max_clients": t.max_clients,
+            "credit_earn_multiplier": float(t.credit_earn_multiplier),
+            "allow_keyword_seo": t.allow_keyword_seo, "allow_backlink": t.allow_backlink,
+            "allow_social_media": t.allow_social_media,
+            "allow_internal_click": t.allow_internal_click,
+            "allow_proxy": t.allow_proxy, "allow_scheduling": t.allow_scheduling,
+            "allow_priority_boost": t.allow_priority_boost,
+            "allow_detailed_report": t.allow_detailed_report,
+        }
+        for t in tiers
+    ]

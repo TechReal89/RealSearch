@@ -13,8 +13,9 @@ from pathlib import Path
 
 LISTEN_HOST = "0.0.0.0"
 LISTEN_PORT = 9999
-# Shared secret to prevent unauthorized access
 API_KEY = "rs_security_agent_2024_internal"
+WHITELIST_FILE = "/etc/realsearch/ssh_whitelist.txt"
+FAIL2BAN_JAIL_LOCAL = "/etc/fail2ban/jail.local"
 
 
 def run_cmd(cmd: list[str], timeout: int = 10) -> str:
@@ -267,6 +268,150 @@ def get_nginx_errors() -> dict:
     }
 
 
+## ── SSH Whitelist Management ──
+
+def _read_whitelist() -> list[dict]:
+    """Read whitelist file, return list of {ip, note}."""
+    entries = []
+    try:
+        if Path(WHITELIST_FILE).exists():
+            for line in Path(WHITELIST_FILE).read_text().strip().split("\n"):
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = line.split("#", 1)
+                ip = parts[0].strip()
+                note = parts[1].strip() if len(parts) > 1 else ""
+                if ip:
+                    entries.append({"ip": ip, "note": note})
+    except Exception:
+        pass
+    return entries
+
+
+def _write_whitelist(entries: list[dict]):
+    """Write whitelist to file and sync to fail2ban + UFW."""
+    Path(WHITELIST_FILE).parent.mkdir(parents=True, exist_ok=True)
+    lines = []
+    for e in entries:
+        if e.get("note"):
+            lines.append(f"{e['ip']}  # {e['note']}")
+        else:
+            lines.append(e["ip"])
+    Path(WHITELIST_FILE).write_text("\n".join(lines) + "\n")
+    _sync_fail2ban_ignoreip(entries)
+    _sync_ufw_ssh_whitelist(entries)
+
+
+def _sync_fail2ban_ignoreip(entries: list[dict]):
+    """Update fail2ban jail.local ignoreip with whitelist IPs."""
+    whitelist_ips = [e["ip"] for e in entries]
+    ignore_line = "ignoreip = 127.0.0.1/8 ::1 " + " ".join(whitelist_ips)
+
+    try:
+        content = Path(FAIL2BAN_JAIL_LOCAL).read_text()
+        new_content = re.sub(r"^ignoreip\s*=.*$", ignore_line, content, flags=re.MULTILINE)
+        if "ignoreip" not in new_content:
+            new_content = new_content.replace("[sshd]", f"[sshd]\n{ignore_line}")
+        Path(FAIL2BAN_JAIL_LOCAL).write_text(new_content)
+        run_cmd(["systemctl", "reload", "fail2ban"])
+    except Exception:
+        pass
+
+
+def _sync_ufw_ssh_whitelist(entries: list[dict]):
+    """Sync UFW rules: only allow SSH from whitelisted IPs."""
+    whitelist_ips = {e["ip"] for e in entries}
+
+    # Get current UFW SSH whitelist rules
+    output = run_cmd(["ufw", "status", "numbered"])
+    existing_ips = set()
+    # Parse rules like: [ 4] 22/tcp  ALLOW IN  113.160.140.37  # SSH whitelist
+    for line in output.split("\n"):
+        if "22/tcp" in line and "SSH whitelist" in line:
+            m = re.search(r"(\d+\.\d+\.\d+\.\d+)", line)
+            if m:
+                existing_ips.add(m.group(1))
+
+    # Add new IPs
+    for ip in whitelist_ips - existing_ips:
+        run_cmd(["ufw", "allow", "from", ip, "to", "any", "port", "22", "proto", "tcp", "comment", "SSH whitelist"])
+
+    # Remove old IPs (reverse order to keep rule numbers stable)
+    for ip in existing_ips - whitelist_ips:
+        run_cmd(["ufw", "delete", "allow", "from", ip, "to", "any", "port", "22", "proto", "tcp"])
+
+    run_cmd(["ufw", "reload"])
+
+
+def _get_successful_ssh_ips() -> list[dict]:
+    """Parse auth.log for IPs that successfully logged in via SSH."""
+    ips = {}
+    auth_log = None
+    for p in ["/var/log/auth.log", "/var/log/secure"]:
+        if Path(p).exists():
+            auth_log = p
+            break
+    if not auth_log:
+        return []
+
+    output = run_cmd(["grep", "Accepted", auth_log], timeout=10)
+    if not output:
+        return []
+
+    pattern = re.compile(r"^(\S+)\s+\S+\s+sshd\[.*Accepted\s+\S+\s+for\s+(\S+)\s+from\s+(\S+)")
+    for line in output.split("\n"):
+        m = pattern.match(line)
+        if m:
+            timestamp, user, ip = m.group(1), m.group(2), m.group(3)
+            if ip not in ips:
+                ips[ip] = {"ip": ip, "user": user, "last_login": timestamp}
+            else:
+                ips[ip]["last_login"] = timestamp
+
+    return list(ips.values())
+
+
+def get_whitelist() -> dict:
+    """Get current whitelist and successful SSH IPs."""
+    whitelist = _read_whitelist()
+    whitelist_set = {e["ip"] for e in whitelist}
+    successful = _get_successful_ssh_ips()
+    # Mark which successful IPs are already whitelisted
+    for s in successful:
+        s["whitelisted"] = s["ip"] in whitelist_set
+    return {
+        "whitelist": whitelist,
+        "successful_ips": successful,
+    }
+
+
+def add_to_whitelist(ip: str, note: str = "") -> dict:
+    """Add IP to whitelist."""
+    ip_pattern = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
+    if not ip_pattern.match(ip):
+        return {"success": False, "error": "Định dạng IP không hợp lệ"}
+    entries = _read_whitelist()
+    existing = {e["ip"] for e in entries}
+    if ip in existing:
+        return {"success": False, "error": f"IP {ip} đã có trong danh sách"}
+    entries.append({"ip": ip, "note": note})
+    _write_whitelist(entries)
+    # Also unban if currently banned
+    run_cmd(["fail2ban-client", "set", "sshd", "unbanip", ip])
+    return {"success": True, "message": f"Đã thêm {ip} vào danh sách cho phép", "ip": ip}
+
+
+def remove_from_whitelist(ip: str) -> dict:
+    """Remove IP from whitelist."""
+    entries = _read_whitelist()
+    new_entries = [e for e in entries if e["ip"] != ip]
+    if len(new_entries) == len(entries):
+        return {"success": False, "error": f"IP {ip} không có trong danh sách"}
+    _write_whitelist(new_entries)
+    return {"success": True, "message": f"Đã xóa {ip} khỏi danh sách cho phép", "ip": ip}
+
+
 def ban_ip(ip: str) -> dict:
     ip_pattern = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$")
     if not ip_pattern.match(ip):
@@ -305,6 +450,7 @@ def build_overview() -> dict:
         "connections": connections,
         "nginx": nginx,
         "recent_events": ssh_data["recent_events"],
+        "whitelist": get_whitelist(),
     }
 
 
@@ -316,12 +462,16 @@ class SecurityHandler(BaseHTTPRequestHandler):
 
         if self.path == "/overview":
             data = build_overview()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json")
-            self.end_headers()
-            self.wfile.write(json.dumps(data).encode())
+        elif self.path == "/whitelist":
+            data = get_whitelist()
         else:
             self.send_error(404)
+            return
+
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps(data).encode())
 
     def do_POST(self):
         if self.headers.get("X-Api-Key") != API_KEY:
@@ -335,6 +485,10 @@ class SecurityHandler(BaseHTTPRequestHandler):
             data = ban_ip(body.get("ip", ""))
         elif self.path == "/unban-ip":
             data = unban_ip(body.get("ip", ""), body.get("jail", "sshd"))
+        elif self.path == "/whitelist/add":
+            data = add_to_whitelist(body.get("ip", ""), body.get("note", ""))
+        elif self.path == "/whitelist/remove":
+            data = remove_from_whitelist(body.get("ip", ""))
         else:
             self.send_error(404)
             return

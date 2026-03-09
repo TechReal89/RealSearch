@@ -55,14 +55,25 @@ export const authApi = {
   register: (data: { username: string; email: string; password: string; full_name?: string; referral_code?: string }) =>
     fetchApi("/auth/register", { method: "POST", body: JSON.stringify(data) }),
   me: () => fetchApi("/auth/me"),
+  changePassword: (current_password: string, new_password: string) =>
+    fetchApi("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ current_password, new_password }),
+    }),
 };
 
 export const userApi = {
   profile: () => fetchApi("/users/profile"),
-  updateProfile: (data: Record<string, unknown>) =>
-    fetchApi("/users/profile", { method: "PUT", body: JSON.stringify(data) }),
+  updateProfile: (data: Record<string, unknown>) => {
+    const params = new URLSearchParams();
+    Object.entries(data).forEach(([k, v]) => {
+      if (v !== undefined && v !== null) params.set(k, String(v));
+    });
+    return fetchApi(`/users/profile?${params.toString()}`, { method: "PUT" });
+  },
   stats: () => fetchApi("/users/stats"),
   referral: () => fetchApi("/users/referral"),
+  tiers: () => fetchApi("/users/tiers"),
 };
 
 export const jobApi = {

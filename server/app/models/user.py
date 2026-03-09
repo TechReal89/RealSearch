@@ -53,6 +53,9 @@ class User(Base):
         Integer, ForeignKey("users.id"), nullable=True
     )
 
+    # Anti-abuse
+    registration_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
+
     # Metadata
     avatar_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(20), nullable=True)

@@ -14,21 +14,25 @@ from src.utils.logger import log
 
 
 async def human_type(page, selector: str, text: str):
-    """Gõ từng ký tự như người thật."""
+    """Gõ từng ký tự như người thật, hỗ trợ tiếng Việt Unicode."""
     element = page.locator(selector)
     await element.click()
     await human_delay(0.3, 0.8)
 
     for i, char in enumerate(text):
-        # Đôi khi gõ sai rồi xoá
-        if random.random() < 0.03 and char.isalpha():
+        # Đôi khi gõ sai rồi xoá (chỉ cho ký tự ASCII)
+        if random.random() < 0.03 and char.isascii() and char.isalpha():
             wrong = random.choice("abcdefghijklmnopqrstuvwxyz")
-            await element.press(wrong)
+            await page.keyboard.press(wrong)
             await human_delay(0.1, 0.3)
-            await element.press("Backspace")
+            await page.keyboard.press("Backspace")
             await human_delay(0.1, 0.2)
 
-        await element.press(char)
+        # press() chỉ hỗ trợ ASCII keys, dùng insert_text() cho Unicode (tiếng Việt)
+        if char.isascii():
+            await page.keyboard.press("Space" if char == " " else char)
+        else:
+            await page.keyboard.insert_text(char)
 
         # Delay giữa ký tự
         if char == " ":

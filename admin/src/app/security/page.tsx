@@ -49,6 +49,8 @@ import {
 export default function SecurityPage() {
   const [data, setData] = useState<SecurityOverview | null>(null);
   const [loading, setLoading] = useState(true);
+  const [newWhitelistIp, setNewWhitelistIp] = useState("");
+  const [newWhitelistNote, setNewWhitelistNote] = useState("");
   const [refreshing, setRefreshing] = useState(false);
   const [banningIp, setBanningIp] = useState<string | null>(null);
 
@@ -102,6 +104,36 @@ export default function SecurityPage() {
       toast.error("Lỗi mở chặn IP");
     } finally {
       setBanningIp(null);
+    }
+  };
+
+  const handleWhitelistAdd = async (ip: string, note = "") => {
+    try {
+      const result = await adminApi.whitelistAdd(ip, note);
+      if (result.success) {
+        toast.success(result.message || `Đã thêm ${ip}`);
+        setNewWhitelistIp("");
+        setNewWhitelistNote("");
+        loadData();
+      } else {
+        toast.error(result.error || "Lỗi thêm IP");
+      }
+    } catch {
+      toast.error("Lỗi thêm IP vào danh sách");
+    }
+  };
+
+  const handleWhitelistRemove = async (ip: string) => {
+    try {
+      const result = await adminApi.whitelistRemove(ip);
+      if (result.success) {
+        toast.success(result.message || `Đã xóa ${ip}`);
+        loadData();
+      } else {
+        toast.error(result.error || "Lỗi xóa IP");
+      }
+    } catch {
+      toast.error("Lỗi xóa IP khỏi danh sách");
     }
   };
 
@@ -435,6 +467,112 @@ export default function SecurityPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* SSH Whitelist */}
+        <Card className="border-green-500/20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-green-500" />
+              Danh sách IP được phép truy cập SSH
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Add new IP form */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Nhập địa chỉ IP (vd: 192.168.1.1)"
+                value={newWhitelistIp}
+                onChange={(e) => setNewWhitelistIp(e.target.value)}
+                className="flex-1 px-3 py-2 rounded-md border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.03)] text-sm text-[#f5f0e8] placeholder:text-[#555] focus:outline-none focus:border-[#d4a84b] font-mono"
+              />
+              <input
+                type="text"
+                placeholder="Ghi chú (tùy chọn)"
+                value={newWhitelistNote}
+                onChange={(e) => setNewWhitelistNote(e.target.value)}
+                className="w-48 px-3 py-2 rounded-md border border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.03)] text-sm text-[#f5f0e8] placeholder:text-[#555] focus:outline-none focus:border-[#d4a84b]"
+              />
+              <Button
+                size="sm"
+                onClick={() => handleWhitelistAdd(newWhitelistIp, newWhitelistNote)}
+                disabled={!newWhitelistIp.trim()}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                Thêm
+              </Button>
+            </div>
+
+            {/* Current whitelist */}
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground mb-2">
+                IP đang được phép ({data.whitelist?.whitelist?.length || 0})
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {(data.whitelist?.whitelist || []).map((entry) => (
+                  <div
+                    key={entry.ip}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-500/10 border border-green-500/20"
+                  >
+                    <ShieldCheck className="w-3.5 h-3.5 text-green-400" />
+                    <span className="font-mono text-sm text-green-300">{entry.ip}</span>
+                    {entry.note && (
+                      <span className="text-xs text-muted-foreground">({entry.note})</span>
+                    )}
+                    <button
+                      onClick={() => handleWhitelistRemove(entry.ip)}
+                      className="text-red-400 hover:text-red-300 transition-colors ml-1"
+                      title="Xóa khỏi danh sách"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+                {(data.whitelist?.whitelist || []).length === 0 && (
+                  <p className="text-sm text-muted-foreground">Chưa có IP nào trong danh sách</p>
+                )}
+              </div>
+            </div>
+
+            {/* Successful SSH IPs not yet whitelisted */}
+            {(data.whitelist?.successful_ips || []).filter((s) => !s.whitelisted).length > 0 && (
+              <div>
+                <h4 className="text-sm font-medium text-yellow-400 mb-2">
+                  IP đã đăng nhập thành công (chưa trong danh sách)
+                </h4>
+                <div className="space-y-1.5">
+                  {(data.whitelist?.successful_ips || [])
+                    .filter((s) => !s.whitelisted)
+                    .map((s) => (
+                      <div
+                        key={s.ip}
+                        className="flex items-center justify-between p-2 rounded-lg bg-yellow-500/5 border border-yellow-500/15"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="font-mono text-sm text-yellow-300">{s.ip}</span>
+                          <span className="text-xs text-muted-foreground">
+                            user: <span className="text-[#f5f0e8]">{s.user}</span>
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            lần cuối: {s.last_login}
+                          </span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleWhitelistAdd(s.ip, `user=${s.user}`)}
+                          className="text-green-400 hover:text-green-300 hover:bg-green-500/10"
+                        >
+                          <ShieldCheck className="w-4 h-4 mr-1" />
+                          Cho phép
+                        </Button>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Nginx Error Summary */}
         {(data.nginx.status_4xx > 0 || data.nginx.status_5xx > 0) && (

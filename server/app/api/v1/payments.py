@@ -176,16 +176,38 @@ async def sepay_callback(
     if channel and channel.config:
         api_key = channel.config.get("api_key", "")
 
-    # Verify Authorization header nếu có api_key
-    if api_key:
+    # Log incoming webhook for debugging
+    logger.info(f"SePay webhook received: transferType={data.get('transferType')}, "
+                f"amount={data.get('transferAmount')}, content={data.get('content')}")
+
+    # Verify API key - SePay gửi header "Authorization: Apikey {key}"
+    webhook_key = channel.config.get("webhook_key", "") if channel and channel.config else ""
+    if webhook_key:
         auth_header = request.headers.get("Authorization", "")
-        expected = f"Bearer {api_key}"
-        if auth_header != expected:
-            logger.warning("SePay webhook: invalid API key")
+        if auth_header != f"Apikey {webhook_key}":
+            logger.warning(f"SePay webhook: invalid auth header: {auth_header[:20]}...")
             return {"success": False, "reason": "Unauthorized"}
 
     result = await process_sepay_webhook(db, data, api_key)
     logger.info(f"SePay webhook result: {result}")
+
+    # Send WebSocket notification to user if payment completed
+    if result.get("success") and result.get("payment_id"):
+        try:
+            from app.ws.manager import manager
+            payment_obj = await db.get(Payment, result["payment_id"])
+            if payment_obj:
+                await manager.send_to_user(payment_obj.user_id, {
+                    "type": "payment_completed",
+                    "payment_id": payment_obj.id,
+                    "amount": float(payment_obj.amount),
+                    "credit_amount": payment_obj.credit_amount or 0,
+                    "bonus_credit": payment_obj.bonus_credit or 0,
+                    "purpose": payment_obj.purpose,
+                })
+        except Exception as e:
+            logger.warning(f"Failed to send WS notification: {e}")
+
     return result
 
 
