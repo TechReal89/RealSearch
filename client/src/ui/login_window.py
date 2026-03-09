@@ -1,4 +1,4 @@
-"""Màn hình đăng nhập."""
+"""Màn hình đăng nhập - VIP Luxury Gold Theme."""
 import asyncio
 import base64
 import json
@@ -9,6 +9,22 @@ from src.config import get_version, get_app_dir
 from src.network.api_client import api
 
 SAVED_CREDENTIALS_FILE = get_app_dir() / "credentials.dat"
+
+# === VIP Gold Color Palette ===
+COLORS = {
+    "bg": "#09090d",
+    "bg_card": "#111118",
+    "bg_input": "#0a0a10",
+    "gold": "#d4a84b",
+    "gold_light": "#f0d78c",
+    "gold_dark": "#b8860b",
+    "text": "#f5f0e8",
+    "text_muted": "#8a8999",
+    "text_dim": "#555555",
+    "border": "#1e1e2d",
+    "border_gold": "#2a2418",
+    "error": "#dc2626",
+}
 
 
 def _save_credentials(username: str, password: str):
@@ -43,54 +59,150 @@ class LoginWindow:
     def __init__(self, on_login_success):
         self.on_login_success = on_login_success
         self.root = tk.Tk()
-        self.root.title(f"Real SEO v{get_version()} - Đăng nhập")
-        self.root.geometry("400x340")
+        self.root.title(f"RealSearch v{get_version()}")
+        self.root.geometry("440x420")
         self.root.resizable(False, False)
+        self.root.configure(bg=COLORS["bg"])
+
+        # Remove default title bar styling
+        self.root.option_add("*TCombobox*Listbox.background", COLORS["bg_card"])
+        self.root.option_add("*TCombobox*Listbox.foreground", COLORS["text"])
+
+        self._setup_styles()
         self._center_window()
         self._build_ui()
         self._load_saved()
 
+    def _setup_styles(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure(".", background=COLORS["bg"], foreground=COLORS["text"])
+        style.configure("TFrame", background=COLORS["bg"])
+        style.configure("Card.TFrame", background=COLORS["bg_card"])
+        style.configure("TLabel", background=COLORS["bg"], foreground=COLORS["text"])
+        style.configure("Card.TLabel", background=COLORS["bg_card"], foreground=COLORS["text"])
+        style.configure("Muted.TLabel", background=COLORS["bg_card"], foreground=COLORS["text_muted"])
+        style.configure("Gold.TLabel", background=COLORS["bg"], foreground=COLORS["gold"])
+        style.configure("Dim.TLabel", background=COLORS["bg"], foreground=COLORS["text_dim"])
+
+        style.configure("TEntry",
+                        fieldbackground=COLORS["bg_input"],
+                        foreground=COLORS["text"],
+                        bordercolor=COLORS["border_gold"],
+                        lightcolor=COLORS["border_gold"],
+                        darkcolor=COLORS["border_gold"],
+                        insertcolor=COLORS["gold"],
+                        padding=(10, 8))
+        style.map("TEntry",
+                   bordercolor=[("focus", COLORS["gold"])],
+                   lightcolor=[("focus", COLORS["gold"])])
+
+        style.configure("Gold.TButton",
+                        background=COLORS["gold"],
+                        foreground=COLORS["bg"],
+                        borderwidth=0,
+                        font=("Segoe UI", 10, "bold"),
+                        padding=(15, 10))
+        style.map("Gold.TButton",
+                   background=[("active", COLORS["gold_dark"]),
+                               ("disabled", COLORS["border"])])
+
+        style.configure("TCheckbutton",
+                        background=COLORS["bg_card"],
+                        foreground=COLORS["text_muted"],
+                        font=("Segoe UI", 9))
+        style.map("TCheckbutton",
+                   background=[("active", COLORS["bg_card"])])
+
     def _center_window(self):
         self.root.update_idletasks()
-        w, h = 400, 340
+        w, h = 440, 420
         x = (self.root.winfo_screenwidth() - w) // 2
         y = (self.root.winfo_screenheight() - h) // 2
         self.root.geometry(f"{w}x{h}+{x}+{y}")
 
     def _build_ui(self):
-        frame = ttk.Frame(self.root, padding=30)
-        frame.pack(expand=True, fill="both")
+        # Main container
+        main = tk.Frame(self.root, bg=COLORS["bg"])
+        main.pack(expand=True, fill="both", padx=30, pady=20)
+
+        # Logo area
+        logo_frame = tk.Frame(main, bg=COLORS["bg"])
+        logo_frame.pack(pady=(0, 5))
+
+        # Logo text (kính lúp emoji + crown emoji as placeholder)
+        tk.Label(
+            logo_frame, text="🔍👑", font=("Segoe UI", 28),
+            bg=COLORS["bg"], fg=COLORS["gold"]
+        ).pack()
 
         # Title
-        ttk.Label(
-            frame, text="Real SEO", font=("Segoe UI", 20, "bold")
+        tk.Label(
+            main, text="RealSearch",
+            font=("Segoe UI", 22, "bold"),
+            bg=COLORS["bg"], fg=COLORS["gold"]
         ).pack(pady=(0, 2))
-        ttk.Label(
-            frame, text=f"v{get_version()}", font=("Segoe UI", 9), foreground="gray"
+
+        tk.Label(
+            main, text=f"v{get_version()}  •  Premium Platform",
+            font=("Segoe UI", 9),
+            bg=COLORS["bg"], fg=COLORS["text_dim"]
         ).pack(pady=(0, 3))
-        ttk.Label(
-            frame, text="Đăng nhập để bắt đầu", font=("Segoe UI", 10)
-        ).pack(pady=(0, 15))
+
+        # Ornament line
+        ornament = tk.Canvas(main, width=200, height=1, bg=COLORS["bg"],
+                             highlightthickness=0)
+        ornament.create_line(0, 0, 200, 0, fill=COLORS["border_gold"], width=1)
+        ornament.pack(pady=(5, 15))
+
+        # Card frame
+        card = tk.Frame(main, bg=COLORS["bg_card"], highlightbackground=COLORS["border_gold"],
+                        highlightthickness=1, padx=25, pady=20)
+        card.pack(fill="x")
+
+        # Gold top line on card
+        gold_line = tk.Canvas(card, width=350, height=2, bg=COLORS["bg_card"],
+                              highlightthickness=0)
+        gold_line.create_line(0, 1, 350, 1, fill=COLORS["gold"], width=2)
+        gold_line.pack(pady=(0, 15))
 
         # Username
-        ttk.Label(frame, text="Username hoặc Email").pack(anchor="w")
-        self.entry_user = ttk.Entry(frame, width=40)
-        self.entry_user.pack(pady=(2, 10), fill="x")
+        tk.Label(
+            card, text="USERNAME", font=("Segoe UI", 8, "bold"),
+            bg=COLORS["bg_card"], fg=COLORS["text_muted"],
+        ).pack(anchor="w")
+        self.entry_user = ttk.Entry(card, width=40, style="TEntry")
+        self.entry_user.pack(pady=(4, 12), fill="x")
 
         # Password
-        ttk.Label(frame, text="Mật khẩu").pack(anchor="w")
-        self.entry_pass = ttk.Entry(frame, width=40, show="*")
-        self.entry_pass.pack(pady=(2, 8), fill="x")
+        tk.Label(
+            card, text="MẬT KHẨU", font=("Segoe UI", 8, "bold"),
+            bg=COLORS["bg_card"], fg=COLORS["text_muted"],
+        ).pack(anchor="w")
+        self.entry_pass = ttk.Entry(card, width=40, show="•", style="TEntry")
+        self.entry_pass.pack(pady=(4, 10), fill="x")
 
         # Remember checkbox
         self.remember_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
-            frame, text="Ghi nhớ tài khoản", variable=self.remember_var
-        ).pack(anchor="w", pady=(0, 10))
+            card, text="Ghi nhớ đăng nhập", variable=self.remember_var,
+            style="TCheckbutton"
+        ).pack(anchor="w", pady=(0, 12))
 
         # Login button
-        self.btn_login = ttk.Button(frame, text="Đăng nhập", command=self._do_login)
+        self.btn_login = ttk.Button(
+            card, text="ĐĂNG NHẬP  →", command=self._do_login,
+            style="Gold.TButton"
+        )
         self.btn_login.pack(fill="x")
+
+        # Footer
+        tk.Label(
+            main, text="🔒  Bảo mật & An toàn",
+            font=("Segoe UI", 8),
+            bg=COLORS["bg"], fg=COLORS["text_dim"]
+        ).pack(pady=(12, 0))
 
         # Bind Enter key
         self.root.bind("<Return>", lambda e: self._do_login())
@@ -129,7 +241,7 @@ class LoginWindow:
             loop.run_until_complete(self._async_login(username, password))
         except Exception as e:
             messagebox.showerror("Đăng nhập thất bại", str(e))
-            self.btn_login.config(state="normal", text="Đăng nhập")
+            self.btn_login.config(state="normal", text="ĐĂNG NHẬP  →")
         finally:
             loop.close()
 

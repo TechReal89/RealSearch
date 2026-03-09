@@ -1,4 +1,4 @@
-"""Cửa sổ chính sau khi đăng nhập."""
+"""Cửa sổ chính sau khi đăng nhập - VIP Luxury Gold Theme."""
 import asyncio
 import threading
 import tkinter as tk
@@ -12,6 +12,27 @@ from src.jobs.social_media import SocialMediaExecutor
 from src.network.api_client import api
 from src.network.ws_client import ws_client, set_callbacks
 from src.utils.logger import log, set_ui_callback
+
+# === VIP Gold Color Palette ===
+COLORS = {
+    "bg": "#09090d",
+    "bg_card": "#111118",
+    "bg_input": "#0a0a10",
+    "bg_log": "#0c0c12",
+    "gold": "#d4a84b",
+    "gold_light": "#f0d78c",
+    "gold_dark": "#b8860b",
+    "text": "#f5f0e8",
+    "text_muted": "#8a8999",
+    "text_dim": "#555555",
+    "border": "#1e1e2d",
+    "border_gold": "#2a2418",
+    "green": "#22c55e",
+    "red": "#ef4444",
+    "yellow": "#eab308",
+    "cyan": "#22d3ee",
+    "orange": "#f97316",
+}
 
 
 class MainWindow:
@@ -30,71 +51,193 @@ class MainWindow:
         }
 
         self.root = tk.Tk()
-        self.root.title(f"Real SEO v{get_version()}")
-        self.root.geometry("700x500")
-        self.root.minsize(600, 400)
+        self.root.title(f"RealSearch v{get_version()}")
+        self.root.geometry("750x550")
+        self.root.minsize(650, 450)
+        self.root.configure(bg=COLORS["bg"])
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        self._setup_styles()
         self._build_ui()
         self._setup_callbacks()
 
+    def _setup_styles(self):
+        style = ttk.Style()
+        style.theme_use("clam")
+
+        style.configure(".", background=COLORS["bg"], foreground=COLORS["text"])
+        style.configure("TFrame", background=COLORS["bg"])
+        style.configure("Card.TFrame", background=COLORS["bg_card"])
+        style.configure("TLabel", background=COLORS["bg"], foreground=COLORS["text"])
+        style.configure("Card.TLabel", background=COLORS["bg_card"], foreground=COLORS["text"])
+        style.configure("Gold.TLabel", background=COLORS["bg"], foreground=COLORS["gold"])
+        style.configure("CardGold.TLabel", background=COLORS["bg_card"], foreground=COLORS["gold"])
+        style.configure("Muted.TLabel", background=COLORS["bg"], foreground=COLORS["text_muted"])
+        style.configure("CardMuted.TLabel", background=COLORS["bg_card"], foreground=COLORS["text_muted"])
+
+        # Buttons
+        style.configure("Gold.TButton",
+                        background=COLORS["gold"],
+                        foreground=COLORS["bg"],
+                        borderwidth=0,
+                        font=("Segoe UI", 10, "bold"),
+                        padding=(12, 8))
+        style.map("Gold.TButton",
+                   background=[("active", COLORS["gold_dark"]),
+                               ("disabled", COLORS["border"])])
+
+        style.configure("Stop.TButton",
+                        background=COLORS["border"],
+                        foreground=COLORS["text_muted"],
+                        borderwidth=0,
+                        font=("Segoe UI", 10),
+                        padding=(12, 8))
+        style.map("Stop.TButton",
+                   background=[("active", "#2a2a3a"),
+                               ("disabled", COLORS["bg"])])
+
+        style.configure("Ghost.TButton",
+                        background=COLORS["bg_card"],
+                        foreground=COLORS["text_muted"],
+                        borderwidth=0,
+                        font=("Segoe UI", 9),
+                        padding=(8, 6))
+        style.map("Ghost.TButton",
+                   background=[("active", COLORS["border"])])
+
+        # Combobox
+        style.configure("TCombobox",
+                        fieldbackground=COLORS["bg_input"],
+                        foreground=COLORS["text"],
+                        bordercolor=COLORS["border_gold"],
+                        arrowcolor=COLORS["gold"],
+                        padding=(8, 6))
+        style.map("TCombobox",
+                   fieldbackground=[("readonly", COLORS["bg_input"])],
+                   foreground=[("readonly", COLORS["text"])])
+
+        # LabelFrame
+        style.configure("Gold.TLabelframe",
+                        background=COLORS["bg_card"],
+                        foreground=COLORS["gold"],
+                        bordercolor=COLORS["border_gold"])
+        style.configure("Gold.TLabelframe.Label",
+                        background=COLORS["bg_card"],
+                        foreground=COLORS["gold"],
+                        font=("Segoe UI", 9, "bold"))
+
     def _build_ui(self):
-        # === Top bar: User info ===
-        top = ttk.Frame(self.root, padding=10)
-        top.pack(fill="x")
+        # === Header Bar ===
+        header = tk.Frame(self.root, bg=COLORS["bg_card"], padx=15, pady=10,
+                          highlightbackground=COLORS["border_gold"], highlightthickness=0)
+        header.pack(fill="x")
 
-        ttk.Label(
-            top, text=f"Xin chào, {self.user.get('full_name', self.user['username'])}",
-            font=("Segoe UI", 12, "bold"),
+        # Gold top accent
+        gold_accent = tk.Canvas(header, width=2000, height=2, bg=COLORS["bg_card"],
+                                highlightthickness=0)
+        gold_accent.create_line(0, 1, 2000, 1, fill=COLORS["gold"], width=2)
+        gold_accent.pack(fill="x", pady=(0, 8))
+
+        # User info row
+        info_row = tk.Frame(header, bg=COLORS["bg_card"])
+        info_row.pack(fill="x")
+
+        # Left: user greeting
+        left = tk.Frame(info_row, bg=COLORS["bg_card"])
+        left.pack(side="left")
+
+        tk.Label(
+            left, text=f"🔍 {self.user.get('full_name', self.user['username'])}",
+            font=("Segoe UI", 13, "bold"),
+            bg=COLORS["bg_card"], fg=COLORS["text"]
         ).pack(side="left")
 
-        self.lbl_credit = ttk.Label(
-            top, text=f"Credit: {self.user.get('credit_balance', 0)}",
-            font=("Segoe UI", 11),
-        )
-        self.lbl_credit.pack(side="left", padx=20)
+        # Center: credit + tier badges
+        center = tk.Frame(info_row, bg=COLORS["bg_card"])
+        center.pack(side="left", padx=20)
 
-        ttk.Label(
-            top, text=f"Cấp: {self.user.get('tier', 'bronze').title()}",
+        # Credit badge
+        credit_badge = tk.Frame(center, bg="#1a1510", padx=10, pady=3,
+                                highlightbackground=COLORS["border_gold"], highlightthickness=1)
+        credit_badge.pack(side="left", padx=(0, 8))
+        tk.Label(
+            credit_badge, text=f"💰 {self.user.get('credit_balance', 0):,}",
+            font=("Segoe UI", 10, "bold"),
+            bg="#1a1510", fg=COLORS["gold"]
+        ).pack()
+        self.lbl_credit = credit_badge.winfo_children()[0]
+
+        # Tier badge
+        tier = self.user.get('tier', 'bronze').title()
+        tier_colors = {
+            "Bronze": "#CD7F32", "Silver": "#C0C0C0",
+            "Gold": COLORS["gold"], "Diamond": "#22d3ee"
+        }
+        tier_color = tier_colors.get(tier, "#CD7F32")
+
+        tier_badge = tk.Frame(center, bg=COLORS["bg_card"], padx=8, pady=3,
+                              highlightbackground=tier_color, highlightthickness=1)
+        tier_badge.pack(side="left")
+        tier_icons = {"Bronze": "🛡️", "Silver": "🏅", "Gold": "👑", "Diamond": "💎"}
+        tk.Label(
+            tier_badge, text=f"{tier_icons.get(tier, '🛡️')} {tier}",
+            font=("Segoe UI", 9, "bold"),
+            bg=COLORS["bg_card"], fg=tier_color
+        ).pack()
+
+        # Right: logout
+        ttk.Button(
+            info_row, text="Đăng xuất", command=self._logout,
+            style="Ghost.TButton"
+        ).pack(side="right")
+
+        # === Status & Controls ===
+        ctrl_frame = tk.Frame(self.root, bg=COLORS["bg"], padx=15, pady=10)
+        ctrl_frame.pack(fill="x")
+
+        # Status indicator
+        self.lbl_status = tk.Label(
+            ctrl_frame, text="⚪  Chưa kết nối",
             font=("Segoe UI", 10),
-        ).pack(side="left")
-
-        self.btn_logout = ttk.Button(top, text="Đăng xuất", command=self._logout)
-        self.btn_logout.pack(side="right")
-
-        # === Status bar ===
-        status_frame = ttk.Frame(self.root, padding=(10, 5))
-        status_frame.pack(fill="x")
-
-        self.lbl_status = ttk.Label(
-            status_frame, text="⚪ Chưa kết nối", font=("Segoe UI", 10)
+            bg=COLORS["bg"], fg=COLORS["text_muted"]
         )
         self.lbl_status.pack(side="left")
 
-        self.lbl_tasks = ttk.Label(
-            status_frame, text="Tasks: 0 hoàn thành | 0 lỗi",
+        # Task counter
+        self.lbl_tasks = tk.Label(
+            ctrl_frame, text="✅ 0  ❌ 0",
             font=("Segoe UI", 9),
+            bg=COLORS["bg"], fg=COLORS["text_dim"]
         )
         self.lbl_tasks.pack(side="right")
 
-        # === Control buttons ===
-        ctrl = ttk.Frame(self.root, padding=(10, 5))
-        ctrl.pack(fill="x")
+        # Buttons row
+        btn_frame = tk.Frame(self.root, bg=COLORS["bg"], padx=15, pady=(0, 5))
+        btn_frame.pack(fill="x")
 
         self.btn_start = ttk.Button(
-            ctrl, text="▶ Bắt đầu", command=self._start, width=15
+            btn_frame, text="▶  BẮT ĐẦU", command=self._start,
+            style="Gold.TButton", width=15
         )
-        self.btn_start.pack(side="left", padx=(0, 5))
+        self.btn_start.pack(side="left", padx=(0, 8))
 
         self.btn_stop = ttk.Button(
-            ctrl, text="⏹ Dừng", command=self._stop, width=15, state="disabled"
+            btn_frame, text="⏹  DỪNG", command=self._stop,
+            style="Stop.TButton", width=15
         )
         self.btn_stop.pack(side="left")
+        self.btn_stop.config(state="disabled")
 
-        # Settings
-        settings_frame = ttk.LabelFrame(ctrl, text="Cài đặt", padding=5)
+        # Settings (right side)
+        settings_frame = tk.Frame(btn_frame, bg=COLORS["bg_card"], padx=10, pady=5,
+                                  highlightbackground=COLORS["border_gold"], highlightthickness=1)
         settings_frame.pack(side="right")
 
-        ttk.Label(settings_frame, text="Trình duyệt:").pack(side="left")
+        tk.Label(
+            settings_frame, text="Trình duyệt:",
+            font=("Segoe UI", 9),
+            bg=COLORS["bg_card"], fg=COLORS["text_muted"]
+        ).pack(side="left", padx=(0, 5))
 
         self._mode_labels = {
             "Ẩn hoàn toàn": "headless",
@@ -111,28 +254,53 @@ class MainWindow:
             width=22,
         )
         self.combo_mode.set(self._mode_reverse.get(config.browser_mode, "Chạy ẩn (khuyên dùng)"))
-        self.combo_mode.pack(side="left", padx=5)
+        self.combo_mode.pack(side="left")
         self.combo_mode.bind("<<ComboboxSelected>>", self._on_mode_change)
 
-        # === Log viewer ===
-        log_frame = ttk.LabelFrame(self.root, text="Nhật ký hoạt động", padding=5)
-        log_frame.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+        # === Ornament line ===
+        ornament = tk.Canvas(self.root, width=2000, height=1, bg=COLORS["bg"],
+                             highlightthickness=0)
+        ornament.create_line(0, 0, 2000, 0, fill=COLORS["border_gold"], width=1)
+        ornament.pack(fill="x", padx=15, pady=5)
 
+        # === Log Viewer ===
+        log_outer = tk.Frame(self.root, bg=COLORS["bg"], padx=15, pady=(0, 10))
+        log_outer.pack(fill="both", expand=True)
+
+        # Log header
+        log_header = tk.Frame(log_outer, bg=COLORS["bg_card"], padx=10, pady=6,
+                              highlightbackground=COLORS["border_gold"], highlightthickness=1)
+        log_header.pack(fill="x")
+        tk.Label(
+            log_header, text="📋  NHẬT KÝ HOẠT ĐỘNG",
+            font=("Segoe UI", 9, "bold"),
+            bg=COLORS["bg_card"], fg=COLORS["gold"]
+        ).pack(side="left")
+
+        # Log text
         self.log_text = scrolledtext.ScrolledText(
-            log_frame,
+            log_outer,
             wrap="word",
             font=("Consolas", 9),
             state="disabled",
-            bg="#1e1e1e",
-            fg="#d4d4d4",
-            insertbackground="white",
+            bg=COLORS["bg_log"],
+            fg="#c8c8d4",
+            insertbackground=COLORS["gold"],
+            selectbackground=COLORS["gold_dark"],
+            selectforeground=COLORS["text"],
+            borderwidth=0,
+            highlightbackground=COLORS["border_gold"],
+            highlightthickness=1,
+            padx=10,
+            pady=8,
         )
         self.log_text.pack(fill="both", expand=True)
 
-        # Log tags
-        self.log_text.tag_config("INFO", foreground="#4ec9b0")
-        self.log_text.tag_config("WARNING", foreground="#ce9178")
-        self.log_text.tag_config("ERROR", foreground="#f44747")
+        # Log color tags
+        self.log_text.tag_config("INFO", foreground=COLORS["cyan"])
+        self.log_text.tag_config("WARNING", foreground=COLORS["orange"])
+        self.log_text.tag_config("ERROR", foreground=COLORS["red"])
+        self.log_text.tag_config("GOLD", foreground=COLORS["gold"])
 
         # Stats counters
         self.tasks_completed = 0
@@ -156,6 +324,8 @@ class MainWindow:
                 tag = "WARNING"
             elif "ERROR" in msg:
                 tag = "ERROR"
+            elif "credit" in msg.lower() or "Credit" in msg:
+                tag = "GOLD"
             self.log_text.insert("end", msg + "\n", tag)
             self.log_text.see("end")
             self.log_text.config(state="disabled")
@@ -165,14 +335,21 @@ class MainWindow:
     def _on_status_change(self, status: str):
         def _do():
             if status == "connected":
-                self.lbl_status.config(text="🟢 Đã kết nối - Đang chờ task")
+                self.lbl_status.config(
+                    text="🟢  Đã kết nối - Đang chờ task",
+                    fg=COLORS["green"]
+                )
             else:
-                self.lbl_status.config(text="🔴 Mất kết nối")
+                self.lbl_status.config(
+                    text="🔴  Mất kết nối",
+                    fg=COLORS["red"]
+                )
         self.root.after(0, _do)
 
     def _on_credit_update(self, data: dict):
         def _do():
-            self.lbl_credit.config(text=f"Credit: {data.get('balance', 0)}")
+            balance = data.get('balance', 0)
+            self.lbl_credit.config(text=f"💰 {balance:,}")
         self.root.after(0, _do)
 
     def _on_broadcast(self, data: dict):
@@ -202,7 +379,7 @@ class MainWindow:
             self.tasks_failed += 1
 
         self.root.after(0, lambda: self.lbl_tasks.config(
-            text=f"Tasks: {self.tasks_completed} hoàn thành | {self.tasks_failed} lỗi"
+            text=f"✅ {self.tasks_completed}  ❌ {self.tasks_failed}"
         ))
 
     def _start(self):
@@ -213,7 +390,7 @@ class MainWindow:
         self.running = True
         self.btn_start.config(state="disabled")
         self.btn_stop.config(state="normal")
-        self.lbl_status.config(text="🟡 Đang kết nối...")
+        self.lbl_status.config(text="🟡  Đang kết nối...", fg=COLORS["yellow"])
 
         log.info("Bắt đầu kết nối server...")
 
@@ -245,7 +422,7 @@ class MainWindow:
 
         self.btn_start.config(state="normal")
         self.btn_stop.config(state="disabled")
-        self.lbl_status.config(text="⚪ Đã dừng")
+        self.lbl_status.config(text="⚪  Đã dừng", fg=COLORS["text_muted"])
 
     def _on_mode_change(self, event):
         display = self.combo_mode.get()
@@ -268,8 +445,8 @@ class MainWindow:
         self.root.destroy()
 
     def run(self):
-        log.info(f"Real SEO {get_version()} - Sẵn sàng")
-        log.info(f"User: {self.user['username']} | Tier: {self.user.get('tier', 'bronze')}")
+        log.info(f"RealSearch {get_version()} - Sẵn sàng")
+        log.info(f"User: {self.user['username']} | Tier: {self.user.get('tier', 'bronze').title()}")
 
         if config.get("auto_start"):
             self.root.after(1000, self._start)

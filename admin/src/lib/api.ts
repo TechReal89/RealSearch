@@ -189,6 +189,92 @@ export interface ClientInfo {
   client_version: string | null;
 }
 
+export interface PaymentChannelConfig {
+  id: number;
+  name: string;
+  display_name: string;
+  icon_url: string | null;
+  config: Record<string, string>;
+  is_active: boolean;
+  fee_percent: number;
+  min_amount: number;
+  max_amount: number;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface Promotion {
+  id: number;
+  name: string;
+  code: string | null;
+  type: string;
+  value: number;
+  min_purchase: number | null;
+  min_tier: string | null;
+  max_uses: number | null;
+  max_uses_per_user: number;
+  current_uses: number;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface ServerMetrics {
+  timestamp: string;
+  cpu: {
+    percent: number;
+    count: number;
+    freq_mhz: number;
+    load_1m: number;
+    load_5m: number;
+    load_15m: number;
+  };
+  memory: {
+    total_gb: number;
+    used_gb: number;
+    available_gb: number;
+    percent: number;
+    swap_total_gb: number;
+    swap_used_gb: number;
+    swap_percent: number;
+  };
+  disk: {
+    total_gb: number;
+    used_gb: number;
+    free_gb: number;
+    percent: number;
+  };
+  network: {
+    bytes_sent: number;
+    bytes_recv: number;
+    connections: number;
+    speed?: { sent_per_sec: number; recv_per_sec: number };
+  };
+  system: {
+    uptime_seconds: number;
+    boot_time: string;
+  };
+  alerts?: { level: string; message: string }[];
+}
+
+export interface ProcessInfo {
+  pid: number;
+  name: string;
+  cpu_percent: number;
+  memory_percent: number;
+  status: string;
+}
+
+export interface DockerContainer {
+  name: string;
+  cpu: string;
+  mem_usage: string;
+  mem_percent: string;
+  net_io: string;
+  pids: string;
+}
+
 // --- API calls ---
 export const authApi = {
   login: (username: string, password: string) =>
@@ -259,8 +345,32 @@ export const adminApi = {
   confirmPayment: (id: number) => api(`/api/v1/admin/payments/${id}/confirm`, { token: t(), method: "POST" }),
   refundPayment: (id: number) => api(`/api/v1/admin/payments/${id}/refund`, { token: t(), method: "POST" }),
 
+  // Payment Channels
+  listChannels: () => api<{ channels: PaymentChannelConfig[] }>("/api/v1/admin/payments/channels", { token: t() }),
+  createChannel: (data: Partial<PaymentChannelConfig>) =>
+    api("/api/v1/admin/payments/channels", { token: t(), method: "POST", body: JSON.stringify(data) }),
+  updateChannel: (id: number, data: Partial<PaymentChannelConfig>) =>
+    api(`/api/v1/admin/payments/channels/${id}`, { token: t(), method: "PUT", body: JSON.stringify(data) }),
+  deleteChannel: (id: number) =>
+    api(`/api/v1/admin/payments/channels/${id}`, { token: t(), method: "DELETE" }),
+
   // Monitoring
   getClients: () => api<{ stats: Record<string, number>; clients: ClientInfo[] }>("/api/v1/admin/clients", { token: t() }),
   broadcast: (message: string, level = "info") =>
     api("/api/v1/admin/broadcast", { token: t(), method: "POST", body: JSON.stringify({ message, level }) }),
+
+  // Promotions
+  listPromotions: (params = "") => api<{ promotions: Promotion[]; total: number }>(`/api/v1/admin/promotions?${params}`, { token: t() }),
+  createPromotion: (data: Partial<Promotion>) =>
+    api("/api/v1/admin/promotions", { token: t(), method: "POST", body: JSON.stringify(data) }),
+  updatePromotion: (id: number, data: Partial<Promotion>) =>
+    api(`/api/v1/admin/promotions/${id}`, { token: t(), method: "PUT", body: JSON.stringify(data) }),
+  deletePromotion: (id: number) =>
+    api(`/api/v1/admin/promotions/${id}`, { token: t(), method: "DELETE" }),
+
+  // Server Monitor
+  serverMetrics: () => api<ServerMetrics>("/api/v1/admin/server/metrics", { token: t() }),
+  serverHistory: (minutes = 5) => api<{ data: ServerMetrics[]; count: number }>(`/api/v1/admin/server/metrics/history?minutes=${minutes}`, { token: t() }),
+  serverProcesses: () => api<{ processes: ProcessInfo[] }>("/api/v1/admin/server/processes", { token: t() }),
+  serverDocker: () => api<{ available: boolean; containers?: DockerContainer[]; error?: string }>("/api/v1/admin/server/docker", { token: t() }),
 };

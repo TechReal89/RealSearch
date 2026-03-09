@@ -13,6 +13,8 @@ from app.api.v1.admin.packages import router as admin_packages_router
 from app.api.v1.admin.payments import router as admin_payments_router
 from app.api.v1.admin.tiers import router as admin_tiers_router
 from app.api.v1.admin.monitoring import router as admin_monitoring_router
+from app.api.v1.admin.promotions import router as admin_promotions_router
+from app.api.v1.admin.server_monitor import router as admin_server_monitor_router
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -32,3 +34,5 @@ api_router.include_router(admin_packages_router)
 api_router.include_router(admin_payments_router)
 api_router.include_router(admin_tiers_router)
 api_router.include_router(admin_monitoring_router)
+api_router.include_router(admin_promotions_router)
+api_router.include_router(admin_server_monitor_router)
