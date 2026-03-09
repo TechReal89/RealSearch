@@ -4,7 +4,11 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "RealSearch - Tăng traffic & SEO tự động",
-  description: "Hệ thống trao đổi lượt truy cập và SEO automation",
+  description: "Hệ thống trao đổi lượt truy cập và SEO automation bằng AI",
+  icons: {
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
