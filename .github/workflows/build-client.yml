@@ -36,10 +36,87 @@ jobs:
         run: |
           python client/scripts/gen_icon.py
 
+      - name: Collect VC++ Runtime DLLs
+        shell: python
+        run: |
+          import sys, os, glob, shutil
+
+          python_dir = os.path.dirname(sys.executable)
+          out_dir = os.path.join('client', 'bundled_dlls')
+          os.makedirs(out_dir, exist_ok=True)
+
+          # Tìm tất cả VC++ DLLs cần thiết
+          dll_names = [
+              'vcruntime140.dll',
+              'vcruntime140_1.dll',
+              'msvcp140.dll',
+              'msvcp140_1.dll',
+              'python312.dll',
+              'ucrtbase.dll',
+              'concrt140.dll',
+          ]
+
+          search_dirs = [
+              python_dir,
+              os.path.join(python_dir, 'DLLs'),
+              os.path.join(python_dir, 'Library', 'bin'),
+              os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'System32'),
+          ]
+
+          # Thêm tất cả dirs từ PATH
+          for p in os.environ.get('PATH', '').split(os.pathsep):
+              if p and os.path.isdir(p):
+                  search_dirs.append(p)
+
+          found = set()
+          for dll_name in dll_names:
+              for d in search_dirs:
+                  src = os.path.join(d, dll_name)
+                  if os.path.exists(src) and dll_name not in found:
+                      dst = os.path.join(out_dir, dll_name)
+                      shutil.copy2(src, dst)
+                      size = os.path.getsize(dst)
+                      print(f"  Copied: {dll_name} from {d} ({size:,} bytes)")
+                      found.add(dll_name)
+                      break
+
+          # api-ms-win-crt DLLs
+          for d in search_dirs[:4]:
+              if not os.path.isdir(d):
+                  continue
+              for f in glob.glob(os.path.join(d, 'api-ms-win-crt-*.dll')):
+                  name = os.path.basename(f)
+                  if name not in found:
+                      shutil.copy2(f, os.path.join(out_dir, name))
+                      found.add(name)
+
+          print(f"\n  Total DLLs collected: {len(found)}")
+
+          # Kiểm tra critical DLLs
+          for dll in ['vcruntime140.dll', 'python312.dll']:
+              if dll not in found:
+                  print(f"  CRITICAL: {dll} NOT FOUND!")
+                  sys.exit(1)
+
       - name: Build with PyInstaller
         run: |
           cd client
           pyinstaller --noconfirm build.spec
+
+      - name: Verify build output
+        run: |
+          $exe = "client/dist/RealSearch.exe"
+          if (Test-Path $exe) {
+            $size = (Get-Item $exe).Length
+            Write-Host "Build OK: RealSearch.exe ($([math]::Round($size/1MB, 1)) MB)"
+            if ($size -lt 10MB) {
+              Write-Error "ERROR: Exe too small ($size bytes) - build may be broken!"
+              exit 1
+            }
+          } else {
+            Write-Error "ERROR: RealSearch.exe not found!"
+            exit 1
+          }
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -53,6 +130,11 @@ jobs:
             2. Chạy file lần đầu, app sẽ tự động tải trình duyệt Chromium (~150MB)
             3. Đăng nhập bằng tài khoản RealSearch
             4. App sẽ tự động cập nhật khi có bản mới
+
+            ### Lưu ý
+            - Nếu gặp lỗi **"Failed to load Python DLL"**: Tải và cài [VC++ Redistributable 2015-2022](https://aka.ms/vs/17/release/vc_redist.x64.exe), sau đó chạy lại app
+            - Nếu Windows SmartScreen chặn, chọn "More info" → "Run anyway"
+            - Nếu Antivirus chặn, thêm thư mục `%APPDATA%\RealSearch` vào danh sách ngoại lệ (exclusion)
           files: |
             client/dist/RealSearch.exe
           draft: false

@@ -149,17 +149,24 @@ def check_update_on_startup():
             def do_update():
                 try:
                     updated = loop.run_until_complete(
-                        download_and_update(update["download_url"])
+                        download_and_update(
+                            update["download_url"],
+                            expected_size=update.get("file_size", 0),
+                        )
                     )
                     loop.close()
                     if updated:
                         lbl_status.config(text="Cập nhật xong! Đang khởi động lại...")
                         splash.after(1500, lambda: sys.exit(0))
                     else:
-                        splash.destroy()
+                        lbl_status.config(text="Không thể cập nhật, tiếp tục...")
+                        splash.after(1500, splash.destroy)
                 except Exception as e:
                     log.warning(f"Cập nhật thất bại: {e}")
-                    splash.destroy()
+                    try:
+                        splash.destroy()
+                    except Exception:
+                        pass
 
             splash.after(500, do_update)
             splash.mainloop()
