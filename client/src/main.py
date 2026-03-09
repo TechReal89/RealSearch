@@ -44,8 +44,8 @@ def self_install():
         root = tk.Tk()
         root.withdraw()
         mb.showinfo(
-            "RealSearch - Đã cài đặt",
-            f"RealSearch đã được cài vào:\n{installed_exe}\n\n"
+            "Real SEO - Đã cài đặt",
+            f"Real SEO đã được cài vào:\n{installed_exe}\n\n"
             f"Shortcut đã tạo trên Desktop.\n"
             f"Bạn có thể xoá file hiện tại tại:\n{current_exe}"
         )
@@ -63,7 +63,7 @@ $ws = New-Object -ComObject WScript.Shell
 $sc = $ws.CreateShortcut("{shortcut_path}")
 $sc.TargetPath = "{target_exe}"
 $sc.WorkingDirectory = "{os.path.dirname(target_exe)}"
-$sc.Description = "RealSearch Client"
+$sc.Description = "Real SEO Client"
 $sc.Save()
 """
     subprocess.run(
@@ -90,7 +90,7 @@ def check_update_on_startup():
 
             # Hiện cửa sổ thông báo đang cập nhật
             splash = tk.Tk()
-            splash.title("RealSearch - Cập nhật")
+            splash.title("Real SEO - Cập nhật")
             splash.geometry("400x150")
             splash.resizable(False, False)
             splash.eval('tk::PlaceWindow . center')
@@ -140,7 +140,7 @@ def on_login_success(user_data: dict):
 
 def main():
     version = get_version()
-    log.info(f"RealSearch Client v{version} khởi động")
+    log.info(f"Real SEO v{version} khởi động")
 
     # Tự cài đặt vào thư mục cố định nếu chạy lần đầu
     self_install()

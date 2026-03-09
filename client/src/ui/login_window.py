@@ -43,7 +43,7 @@ class LoginWindow:
     def __init__(self, on_login_success):
         self.on_login_success = on_login_success
         self.root = tk.Tk()
-        self.root.title(f"RealSearch v{get_version()} - Đăng nhập")
+        self.root.title(f"Real SEO v{get_version()} - Đăng nhập")
         self.root.geometry("400x340")
         self.root.resizable(False, False)
         self._center_window()
@@ -63,7 +63,7 @@ class LoginWindow:
 
         # Title
         ttk.Label(
-            frame, text="RealSearch", font=("Segoe UI", 20, "bold")
+            frame, text="Real SEO", font=("Segoe UI", 20, "bold")
         ).pack(pady=(0, 2))
         ttk.Label(
             frame, text=f"v{get_version()}", font=("Segoe UI", 9), foreground="gray"

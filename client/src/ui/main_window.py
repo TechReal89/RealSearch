@@ -30,7 +30,7 @@ class MainWindow:
         }
 
         self.root = tk.Tk()
-        self.root.title(f"RealSearch Client v{get_version()}")
+        self.root.title(f"Real SEO v{get_version()}")
         self.root.geometry("700x500")
         self.root.minsize(600, 400)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
@@ -268,7 +268,7 @@ class MainWindow:
         self.root.destroy()
 
     def run(self):
-        log.info(f"RealSearch Client {get_version()} - Sẵn sàng")
+        log.info(f"Real SEO {get_version()} - Sẵn sàng")
         log.info(f"User: {self.user['username']} | Tier: {self.user.get('tier', 'bronze')}")
 
         if config.get("auto_start"):
