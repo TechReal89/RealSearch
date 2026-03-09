@@ -36,6 +36,18 @@ jobs:
         run: |
           python client/scripts/gen_icon.py
 
+      - name: Download VC++ Redistributable 2015-2022
+        run: |
+          New-Item -ItemType Directory -Force -Path client/redist
+          Write-Host "Downloading VC++ Redistributable x64..."
+          Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "client/redist/vc_redist.x64.exe"
+          $size = (Get-Item "client/redist/vc_redist.x64.exe").Length
+          Write-Host "Downloaded: vc_redist.x64.exe ($([math]::Round($size/1MB, 1)) MB)"
+          if ($size -lt 10MB) {
+            Write-Error "vc_redist.x64.exe too small, download may have failed"
+            exit 1
+          }
+
       - name: Collect VC++ Runtime DLLs
         shell: python
         run: |
@@ -45,7 +57,6 @@ jobs:
           out_dir = os.path.join('client', 'bundled_dlls')
           os.makedirs(out_dir, exist_ok=True)
 
-          # Tìm tất cả VC++ DLLs cần thiết
           dll_names = [
               'vcruntime140.dll',
               'vcruntime140_1.dll',
@@ -63,7 +74,6 @@ jobs:
               os.path.join(os.environ.get('SystemRoot', r'C:\Windows'), 'System32'),
           ]
 
-          # Thêm tất cả dirs từ PATH
           for p in os.environ.get('PATH', '').split(os.pathsep):
               if p and os.path.isdir(p):
                   search_dirs.append(p)
@@ -80,19 +90,7 @@ jobs:
                       found.add(dll_name)
                       break
 
-          # api-ms-win-crt DLLs
-          for d in search_dirs[:4]:
-              if not os.path.isdir(d):
-                  continue
-              for f in glob.glob(os.path.join(d, 'api-ms-win-crt-*.dll')):
-                  name = os.path.basename(f)
-                  if name not in found:
-                      shutil.copy2(f, os.path.join(out_dir, name))
-                      found.add(name)
-
           print(f"\n  Total DLLs collected: {len(found)}")
-
-          # Kiểm tra critical DLLs
           for dll in ['vcruntime140.dll', 'python312.dll']:
               if dll not in found:
                   print(f"  CRITICAL: {dll} NOT FOUND!")
@@ -103,7 +101,7 @@ jobs:
           cd client
           pyinstaller --noconfirm build.spec
 
-      - name: Verify build output
+      - name: Verify PyInstaller output
         run: |
           $exe = "client/dist/RealSearch.exe"
           if (Test-Path $exe) {
@@ -118,6 +116,24 @@ jobs:
             exit 1
           }
 
+      - name: Build Installer with Inno Setup
+        run: |
+          # Extract version number (remove 'v' prefix)
+          $version = "${{ github.ref_name }}" -replace "^v", ""
+          Write-Host "Building installer for version: $version"
+
+          # Inno Setup is pre-installed on windows-latest
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=$version "client\installer.iss"
+
+          $setup = "client\Output\RealSearchSetup.exe"
+          if (Test-Path $setup) {
+            $size = (Get-Item $setup).Length
+            Write-Host "Installer OK: RealSearchSetup.exe ($([math]::Round($size/1MB, 1)) MB)"
+          } else {
+            Write-Error "ERROR: RealSearchSetup.exe not found!"
+            exit 1
+          }
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -125,18 +141,23 @@ jobs:
           body: |
             ## Real SEO ${{ github.ref_name }}
 
-            ### Cài đặt
-            1. Tải file `RealSearch.exe` bên dưới
-            2. Chạy file lần đầu, app sẽ tự động tải trình duyệt Chromium (~150MB)
-            3. Đăng nhập bằng tài khoản RealSearch
-            4. App sẽ tự động cập nhật khi có bản mới
+            ### Cài đặt (Khuyến nghị)
+            1. Tải file **`RealSearchSetup.exe`** bên dưới
+            2. Chạy bộ cài, VC++ Runtime sẽ được cài tự động nếu cần
+            3. App sẽ tự động tải trình duyệt Chromium (~150MB) lần đầu
+            4. Đăng nhập bằng tài khoản RealSearch
+
+            ### Tải bản portable (không cần cài đặt)
+            - Tải `RealSearch.exe` nếu bạn đã cài VC++ Runtime rồi
+            - Nếu gặp lỗi **"Failed to load Python DLL"**: dùng bản `RealSearchSetup.exe` ở trên
 
             ### Lưu ý
-            - Nếu gặp lỗi **"Failed to load Python DLL"**: Tải và cài [VC++ Redistributable 2015-2022](https://aka.ms/vs/17/release/vc_redist.x64.exe), sau đó chạy lại app
+            - App sẽ tự động cập nhật khi có bản mới
             - Nếu Windows SmartScreen chặn, chọn "More info" → "Run anyway"
-            - Nếu Antivirus chặn, thêm thư mục `%APPDATA%\RealSearch` vào danh sách ngoại lệ (exclusion)
+            - Nếu Antivirus chặn, thêm thư mục `%APPDATA%\RealSearch` vào exclusion
           files: |
             client/dist/RealSearch.exe
+            client/Output/RealSearchSetup.exe
           draft: false
           prerelease: false
         env:
