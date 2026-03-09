@@ -193,7 +193,7 @@ export const adminApi = {
   setJobPriority: (id: number, priority: number) =>
     api<Job>(`/api/v1/admin/jobs/${id}/priority`, { token: t(), method: "PUT", body: JSON.stringify({ admin_priority: priority }) }),
   startJob: (id: number) =>
-    api<Job>(`/api/v1/admin/jobs/${id}/resume`, { token: t(), method: "POST" }),
+    api<Job>(`/api/v1/admin/jobs/${id}/start`, { token: t(), method: "POST" }),
   pauseJob: (id: number) => api<Job>(`/api/v1/admin/jobs/${id}/pause`, { token: t(), method: "POST" }),
   resumeJob: (id: number) => api<Job>(`/api/v1/admin/jobs/${id}/resume`, { token: t(), method: "POST" }),
   deleteJob: (id: number) => api(`/api/v1/admin/jobs/${id}`, { token: t(), method: "DELETE" }),
