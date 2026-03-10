@@ -106,22 +106,26 @@ async def init_browser() -> Browser:
         "--disable-translate",
     ]
 
+    # Ưu tiên Chrome hệ thống (anti-detection tốt hơn Chromium)
     try:
-        _browser = await _playwright.chromium.launch(
-            headless=headless,
-            args=launch_args,
-        )
-    except Exception as e:
-        log.error(f"Không thể mở trình duyệt: {e}")
-        # Thử lại với channel chrome (dùng Chrome đã cài trên máy)
-        log.info("Thử dùng Chrome có sẵn trên máy...")
         _browser = await _playwright.chromium.launch(
             headless=headless,
             channel="chrome",
             args=launch_args,
         )
+        log.info(f"Chrome hệ thống khởi tạo (mode={mode})")
+    except Exception:
+        log.info("Chrome không có sẵn, dùng Chromium bundled...")
+        try:
+            _browser = await _playwright.chromium.launch(
+                headless=headless,
+                args=launch_args,
+            )
+            log.info(f"Chromium khởi tạo (mode={mode})")
+        except Exception as e:
+            log.error(f"Không thể mở trình duyệt: {e}")
+            raise
 
-    log.info(f"Browser khởi tạo (mode={mode})")
     return _browser
 
 
