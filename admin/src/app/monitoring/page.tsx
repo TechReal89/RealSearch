@@ -103,9 +103,10 @@ export default function MonitoringPage() {
                 <TableRow>
                   <TableHead>Session</TableHead>
                   <TableHead>User ID</TableHead>
+                  <TableHead>Version</TableHead>
                   <TableHead>OS</TableHead>
                   <TableHead>Mode</TableHead>
-                  <TableHead>Job Types</TableHead>
+                  <TableHead>CPU / RAM</TableHead>
                   <TableHead>Tasks</TableHead>
                   <TableHead>Credits</TableHead>
                   <TableHead>Trạng thái</TableHead>
@@ -114,20 +115,23 @@ export default function MonitoringPage() {
               </TableHeader>
               <TableBody>
                 {clients.length === 0 && (
-                  <TableRow><TableCell colSpan={9} className="text-center text-muted-foreground py-8">Không có client nào đang kết nối</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center text-muted-foreground py-8">Không có client nào đang kết nối</TableCell></TableRow>
                 )}
-                {clients.map((c) => (
+                {clients.map((c) => {
+                  const hbAge = (Date.now() - new Date(c.last_heartbeat).getTime()) / 1000;
+                  const healthColor = hbAge < 60 ? "text-green-600" : hbAge < 120 ? "text-yellow-600" : "text-red-600";
+                  const healthDot = hbAge < 60 ? "bg-green-500" : hbAge < 120 ? "bg-yellow-500" : "bg-red-500";
+                  return (
                   <TableRow key={c.session_id}>
                     <TableCell className="font-mono text-xs">{c.session_id.slice(0, 8)}...</TableCell>
                     <TableCell>{c.user_id}</TableCell>
+                    <TableCell className="text-xs">{(c as any).client_version || "-"}</TableCell>
                     <TableCell className="text-xs">{c.os_info || "-"}</TableCell>
                     <TableCell><Badge variant="outline">{c.browser_mode}</Badge></TableCell>
-                    <TableCell>
-                      <div className="flex gap-1 flex-wrap">
-                        {(c.enabled_job_types || []).map((jt) => (
-                          <Badge key={jt} variant="secondary" className="text-xs">{jt}</Badge>
-                        ))}
-                      </div>
+                    <TableCell className="text-xs">
+                      <span className={((c as any).cpu_usage || 0) > 80 ? "text-red-600" : ""}>{((c as any).cpu_usage || 0).toFixed(0)}%</span>
+                      {" / "}
+                      <span className={((c as any).memory_usage || 0) > 80 ? "text-red-600" : ""}>{((c as any).memory_usage || 0).toFixed(0)}%</span>
                     </TableCell>
                     <TableCell>
                       <span className="text-green-600">{c.tasks_completed}</span>
@@ -137,15 +141,19 @@ export default function MonitoringPage() {
                     </TableCell>
                     <TableCell className="text-green-600">{c.credits_earned.toLocaleString()}</TableCell>
                     <TableCell>
-                      <Badge variant={c.is_available ? "default" : "secondary"}>
-                        {c.is_available ? "Sẵn sàng" : "Bận"}
-                      </Badge>
+                      <div className="flex items-center gap-1.5">
+                        <div className={`w-2 h-2 rounded-full ${healthDot}`} />
+                        <Badge variant={c.is_available ? "default" : "secondary"}>
+                          {c.is_available ? "Sẵn sàng" : "Bận"}
+                        </Badge>
+                      </div>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
+                    <TableCell className={`text-xs ${healthColor}`}>
                       {new Date(c.last_heartbeat).toLocaleTimeString("vi")}
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>

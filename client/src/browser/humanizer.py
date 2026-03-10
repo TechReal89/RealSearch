@@ -1,5 +1,6 @@
 """Human-like behavior simulation."""
 import asyncio
+import math
 import random
 
 
@@ -42,16 +43,75 @@ async def human_scroll(page, scroll_behavior="natural"):
             await asyncio.sleep(random.uniform(0.5, 1.0))
 
 
-async def human_mouse_move(page):
-    """Di chuyển chuột ngẫu nhiên."""
+def _bezier_point(t: float, p0: float, p1: float, p2: float) -> float:
+    """Calculate point on quadratic Bezier curve at parameter t."""
+    return (1 - t) ** 2 * p0 + 2 * (1 - t) * t * p1 + t ** 2 * p2
+
+
+async def human_mouse_move(page, target_x: int | None = None, target_y: int | None = None):
+    """Di chuyển chuột theo đường cong Bezier (tự nhiên hơn linear)."""
     try:
         viewport = await page.evaluate(
             "({w: window.innerWidth, h: window.innerHeight})"
         )
-        x = random.randint(100, viewport["w"] - 100)
-        y = random.randint(100, viewport["h"] - 100)
-        await page.mouse.move(x, y)
-        await human_delay(0.2, 0.5)
+
+        # Starting position (roughly center-ish with randomness)
+        start_x = random.randint(100, viewport["w"] // 2)
+        start_y = random.randint(100, viewport["h"] // 2)
+
+        # Target position
+        if target_x is None:
+            target_x = random.randint(100, viewport["w"] - 100)
+        if target_y is None:
+            target_y = random.randint(100, viewport["h"] - 100)
+
+        # Control point for Bezier curve (random offset for natural curve)
+        ctrl_x = (start_x + target_x) / 2 + random.randint(-150, 150)
+        ctrl_y = (start_y + target_y) / 2 + random.randint(-150, 150)
+
+        # Number of steps based on distance
+        dist = math.sqrt((target_x - start_x) ** 2 + (target_y - start_y) ** 2)
+        steps = max(10, min(25, int(dist / 30)))
+
+        for i in range(steps + 1):
+            t = i / steps
+            # Ease-in-out timing
+            t_eased = t * t * (3 - 2 * t)
+            x = _bezier_point(t_eased, start_x, ctrl_x, target_x)
+            y = _bezier_point(t_eased, start_y, ctrl_y, target_y)
+            await page.mouse.move(x, y)
+            await asyncio.sleep(random.uniform(0.01, 0.03))
+
+        # 15% chance of overshoot then correct
+        if random.random() < 0.15:
+            overshoot_x = target_x + random.randint(-20, 20)
+            overshoot_y = target_y + random.randint(-20, 20)
+            await page.mouse.move(overshoot_x, overshoot_y)
+            await asyncio.sleep(random.uniform(0.05, 0.15))
+            await page.mouse.move(target_x, target_y)
+
+        await human_delay(0.1, 0.3)
+    except Exception:
+        pass
+
+
+async def micro_movements(page, duration: float = 2.0):
+    """Micro jitter khi 'đọc' nội dung - di chuột nhẹ 1-3px."""
+    try:
+        viewport = await page.evaluate(
+            "({w: window.innerWidth, h: window.innerHeight})"
+        )
+        base_x = random.randint(200, viewport["w"] - 200)
+        base_y = random.randint(200, viewport["h"] - 200)
+
+        elapsed = 0
+        while elapsed < duration:
+            jitter_x = base_x + random.randint(-3, 3)
+            jitter_y = base_y + random.randint(-3, 3)
+            await page.mouse.move(jitter_x, jitter_y)
+            wait = random.uniform(0.3, 0.8)
+            await asyncio.sleep(wait)
+            elapsed += wait
     except Exception:
         pass
 

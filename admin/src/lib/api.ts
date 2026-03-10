@@ -311,6 +311,85 @@ export interface SecurityOverview {
   };
 }
 
+// --- License Types ---
+export interface LicenseProduct {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  icon_url: string | null;
+  latest_version: string | null;
+  download_url: string | null;
+  features: Record<string, unknown> | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LicensePlan {
+  id: number;
+  product_id: number;
+  name: string;
+  duration_days: number;
+  price: number;
+  max_devices: number;
+  features: Record<string, unknown> | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface License {
+  id: number;
+  license_key: string;
+  product_id: number;
+  plan_id: number | null;
+  user_id: number | null;
+  customer_name: string | null;
+  customer_email: string | null;
+  status: string;
+  max_devices: number;
+  current_devices: number;
+  features: Record<string, unknown> | null;
+  note: string | null;
+  activated_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+  updated_at: string;
+  product_name: string | null;
+  plan_name: string | null;
+}
+
+export interface LicenseDevice {
+  id: number;
+  license_id: number;
+  machine_id: string;
+  device_name: string | null;
+  os_info: string | null;
+  ip_address: string | null;
+  is_active: boolean;
+  first_seen: string;
+  last_seen: string;
+}
+
+export interface LicenseLog {
+  id: number;
+  license_id: number;
+  action: string;
+  machine_id: string | null;
+  ip_address: string | null;
+  detail: string | null;
+  created_at: string;
+}
+
+export interface LicenseStats {
+  total_licenses: number;
+  by_status: Record<string, number>;
+  active_devices: number;
+  products_count: number;
+}
+
 // --- API calls ---
 export const authApi = {
   login: (username: string, password: string) =>
@@ -409,6 +488,52 @@ export const adminApi = {
   serverHistory: (minutes = 5) => api<{ data: ServerMetrics[]; count: number }>(`/api/v1/admin/server/metrics/history?minutes=${minutes}`, { token: t() }),
   serverProcesses: () => api<{ processes: ProcessInfo[] }>("/api/v1/admin/server/processes", { token: t() }),
   serverDocker: () => api<{ available: boolean; containers?: DockerContainer[]; error?: string }>("/api/v1/admin/server/docker", { token: t() }),
+
+  // License - Products
+  listProducts: () => api<LicenseProduct[]>("/api/v1/admin/license/products", { token: t() }),
+  createProduct: (data: Partial<LicenseProduct>) =>
+    api<LicenseProduct>("/api/v1/admin/license/products", { token: t(), method: "POST", body: JSON.stringify(data) }),
+  updateProduct: (id: number, data: Partial<LicenseProduct>) =>
+    api<LicenseProduct>(`/api/v1/admin/license/products/${id}`, { token: t(), method: "PUT", body: JSON.stringify(data) }),
+  deleteProduct: (id: number) =>
+    api(`/api/v1/admin/license/products/${id}`, { token: t(), method: "DELETE" }),
+
+  // License - Plans
+  listPlans: (productId?: number) =>
+    api<LicensePlan[]>(`/api/v1/admin/license/plans${productId ? `?product_id=${productId}` : ""}`, { token: t() }),
+  createPlan: (data: Partial<LicensePlan>) =>
+    api<LicensePlan>("/api/v1/admin/license/plans", { token: t(), method: "POST", body: JSON.stringify(data) }),
+  updatePlan: (id: number, data: Partial<LicensePlan>) =>
+    api<LicensePlan>(`/api/v1/admin/license/plans/${id}`, { token: t(), method: "PUT", body: JSON.stringify(data) }),
+  deletePlan: (id: number) =>
+    api(`/api/v1/admin/license/plans/${id}`, { token: t(), method: "DELETE" }),
+
+  // License - Licenses
+  listLicenses: (params = "") =>
+    api<{ licenses: License[]; total: number; page: number; page_size: number }>(`/api/v1/admin/license/licenses?${params}`, { token: t() }),
+  createLicense: (data: Record<string, unknown>) =>
+    api<License>("/api/v1/admin/license/licenses", { token: t(), method: "POST", body: JSON.stringify(data) }),
+  createLicenseBatch: (data: Record<string, unknown>) =>
+    api<{ count: number; keys: string[] }>("/api/v1/admin/license/licenses/batch", { token: t(), method: "POST", body: JSON.stringify(data) }),
+  getLicense: (id: number) =>
+    api<License>(`/api/v1/admin/license/licenses/${id}`, { token: t() }),
+  updateLicense: (id: number, data: Partial<License>) =>
+    api<License>(`/api/v1/admin/license/licenses/${id}`, { token: t(), method: "PUT", body: JSON.stringify(data) }),
+  deleteLicense: (id: number) =>
+    api(`/api/v1/admin/license/licenses/${id}`, { token: t(), method: "DELETE" }),
+  licenseDevices: (id: number) =>
+    api<LicenseDevice[]>(`/api/v1/admin/license/licenses/${id}/devices`, { token: t() }),
+  licenseLogs: (id: number) =>
+    api<LicenseLog[]>(`/api/v1/admin/license/licenses/${id}/logs`, { token: t() }),
+  removeDevice: (deviceId: number) =>
+    api(`/api/v1/admin/license/devices/${deviceId}`, { token: t(), method: "DELETE" }),
+  licenseStats: (productId?: number) =>
+    api<LicenseStats>(`/api/v1/admin/license/stats${productId ? `?product_id=${productId}` : ""}`, { token: t() }),
+
+  // Analytics
+  analyticsTask: (days = 30) => api<Record<string, unknown>>(`/api/v1/admin/analytics/tasks?days=${days}`, { token: t() }),
+  analyticsCredits: (days = 30) => api<Record<string, unknown>>(`/api/v1/admin/analytics/credits?days=${days}`, { token: t() }),
+  analyticsRevenue: (days = 30) => api<Record<string, unknown>>(`/api/v1/admin/analytics/revenue?days=${days}`, { token: t() }),
 
   // Security
   securityOverview: () => api<SecurityOverview>("/api/v1/admin/security/overview", { token: t() }),

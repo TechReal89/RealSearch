@@ -39,6 +39,8 @@ class ClientConnection:
         self.tasks_completed = 0
         self.tasks_failed = 0
         self.credits_earned = 0
+        self.cpu_usage: float = 0
+        self.memory_usage: float = 0
 
     @property
     def is_available(self) -> bool:
@@ -152,6 +154,8 @@ class ConnectionManager:
         client = self._connections.get(session_id)
         if client:
             client.last_heartbeat = datetime.now(timezone.utc)
+            client.cpu_usage = cpu_usage
+            client.memory_usage = memory_usage
 
     def get_stats(self) -> dict:
         total = self.online_count

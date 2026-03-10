@@ -8,7 +8,7 @@ import websockets
 from src.config import config, get_version
 from src.network.api_client import api
 from src.utils.logger import log
-from src.utils.system_info import get_machine_id, get_os_info
+from src.utils.system_info import get_machine_id, get_os_info, get_resource_usage
 
 # Callbacks
 _on_task_assign = None
@@ -157,9 +157,10 @@ class WSClient:
         while self._connected and self._ws:
             try:
                 await asyncio.sleep(interval)
+                usage = get_resource_usage()
                 await self.send("heartbeat", {
-                    "cpu_usage": 0,
-                    "memory_usage": 0,
+                    "cpu_usage": usage["cpu_usage"],
+                    "memory_usage": usage["memory_usage"],
                     "timestamp": time.time(),
                 })
             except asyncio.CancelledError:

@@ -6,6 +6,7 @@ import sys
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
+from src.browser.fingerprint import Fingerprint, generate_fingerprint
 from src.config import config, APP_DIR
 from src.utils.logger import log
 
@@ -106,6 +107,14 @@ async def init_browser() -> Browser:
         "--disable-translate",
     ]
 
+    # Headed hidden: đẩy cửa sổ ra ngoài màn hình + tắt âm thanh
+    if mode == "headed_hidden":
+        launch_args.extend([
+            "--window-position=-2400,-2400",
+            "--window-size=1366,768",
+            "--mute-audio",
+        ])
+
     # Ưu tiên Chrome hệ thống (anti-detection tốt hơn Chromium)
     try:
         _browser = await _playwright.chromium.launch(
@@ -129,58 +138,133 @@ async def init_browser() -> Browser:
     return _browser
 
 
-async def create_context() -> BrowserContext:
-    """Tạo browser context với stealth settings."""
-    browser = await init_browser()
-
-    context = await browser.new_context(
-        viewport={"width": 1366, "height": 768},
-        user_agent=(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/131.0.0.0 Safari/537.36"
-        ),
-        locale="vi-VN",
-        timezone_id="Asia/Ho_Chi_Minh",
-        java_script_enabled=True,
-    )
-
-    # Stealth scripts
-    await context.add_init_script("""
+def _build_stealth_script(fp: Fingerprint) -> str:
+    """Build stealth JavaScript injection script based on fingerprint."""
+    return f"""
         // Hide webdriver
-        Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+        Object.defineProperty(navigator, 'webdriver', {{get: () => undefined}});
 
-        // Override plugins
-        Object.defineProperty(navigator, 'plugins', {
-            get: () => [1, 2, 3, 4, 5],
-        });
+        // Override plugins - realistic Chrome plugins
+        Object.defineProperty(navigator, 'plugins', {{
+            get: () => {{
+                const plugins = [
+                    {{name: 'Chrome PDF Plugin', filename: 'internal-pdf-viewer', description: 'Portable Document Format'}},
+                    {{name: 'Chrome PDF Viewer', filename: 'mhjfbmdgcfjbbpaeojofohoefgiehjai', description: ''}},
+                    {{name: 'Native Client', filename: 'internal-nacl-plugin', description: ''}},
+                ];
+                plugins.length = 3;
+                return plugins;
+            }},
+        }});
 
         // Override languages
-        Object.defineProperty(navigator, 'languages', {
-            get: () => ['vi-VN', 'vi', 'en-US', 'en'],
-        });
+        Object.defineProperty(navigator, 'languages', {{
+            get: () => {fp.languages},
+        }});
+
+        // Hardware concurrency
+        Object.defineProperty(navigator, 'hardwareConcurrency', {{
+            get: () => {fp.hardware_concurrency},
+        }});
+
+        // Device memory
+        Object.defineProperty(navigator, 'deviceMemory', {{
+            get: () => {fp.device_memory},
+        }});
+
+        // Platform
+        Object.defineProperty(navigator, 'platform', {{
+            get: () => '{fp.platform}',
+        }});
 
         // Chrome runtime
-        window.chrome = {runtime: {}};
+        window.chrome = {{
+            runtime: {{
+                PlatformOs: {{MAC: 'mac', WIN: 'win', ANDROID: 'android', CROS: 'cros', LINUX: 'linux', OPENBSD: 'openbsd'}},
+                PlatformArch: {{ARM: 'arm', X86_32: 'x86-32', X86_64: 'x86-64', MIPS: 'mips', MIPS64: 'mips64'}},
+                PlatformNaclArch: {{ARM: 'arm', X86_32: 'x86-32', X86_64: 'x86-64', MIPS: 'mips', MIPS64: 'mips64'}},
+                RequestUpdateCheckStatus: {{THROTTLED: 'throttled', NO_UPDATE: 'no_update', UPDATE_AVAILABLE: 'update_available'}},
+                OnInstalledReason: {{INSTALL: 'install', UPDATE: 'update', CHROME_UPDATE: 'chrome_update', SHARED_MODULE_UPDATE: 'shared_module_update'}},
+                OnRestartRequiredReason: {{APP_UPDATE: 'app_update', OS_UPDATE: 'os_update', PERIODIC: 'periodic'}},
+            }},
+            loadTimes: function() {{ return {{}}; }},
+            csi: function() {{ return {{}}; }},
+            app: {{isInstalled: false, InstallState: {{INSTALLED: 'installed', DISABLED: 'disabled'}}, RunningState: {{RUNNING: 'running', CANNOT_RUN: 'cannot_run'}} }},
+        }};
 
-        // Permissions - deny geolocation, notifications, etc.
+        // WebGL spoofing
+        const getParameterOrig = WebGLRenderingContext.prototype.getParameter;
+        WebGLRenderingContext.prototype.getParameter = function(param) {{
+            if (param === 37445) return '{fp.webgl_vendor}';
+            if (param === 37446) return '{fp.webgl_renderer}';
+            return getParameterOrig.call(this, param);
+        }};
+        const getParameterOrig2 = WebGL2RenderingContext.prototype.getParameter;
+        WebGL2RenderingContext.prototype.getParameter = function(param) {{
+            if (param === 37445) return '{fp.webgl_vendor}';
+            if (param === 37446) return '{fp.webgl_renderer}';
+            return getParameterOrig2.call(this, param);
+        }};
+
+        // Connection API spoof
+        if (navigator.connection) {{
+            Object.defineProperty(navigator.connection, 'rtt', {{get: () => 50}});
+            Object.defineProperty(navigator.connection, 'downlink', {{get: () => 10}});
+            Object.defineProperty(navigator.connection, 'effectiveType', {{get: () => '4g'}});
+        }}
+
+        // Permissions - deny geolocation, notifications
         const originalQuery = window.navigator.permissions.query;
-        window.navigator.permissions.query = (parameters) => {
-            if (parameters.name === 'geolocation' || parameters.name === 'notifications') {
-                return Promise.resolve({state: 'denied', onchange: null});
-            }
+        window.navigator.permissions.query = (parameters) => {{
+            if (parameters.name === 'geolocation' || parameters.name === 'notifications') {{
+                return Promise.resolve({{state: 'denied', onchange: null}});
+            }}
             return originalQuery(parameters);
-        };
+        }};
 
         // Block geolocation API
-        navigator.geolocation.getCurrentPosition = (s, e) => {
-            if (e) e({code: 1, message: 'User denied Geolocation'});
-        };
-        navigator.geolocation.watchPosition = (s, e) => {
-            if (e) e({code: 1, message: 'User denied Geolocation'});
+        navigator.geolocation.getCurrentPosition = (s, e) => {{
+            if (e) e({{code: 1, message: 'User denied Geolocation'}});
+        }};
+        navigator.geolocation.watchPosition = (s, e) => {{
+            if (e) e({{code: 1, message: 'User denied Geolocation'}});
             return 0;
-        };
-    """)
+        }};
+    """
+
+
+async def create_context(proxy: dict | None = None) -> BrowserContext:
+    """Tạo browser context với stealth settings và fingerprint ngẫu nhiên."""
+    browser = await init_browser()
+    fp = generate_fingerprint()
+
+    ctx_kwargs = {
+        "viewport": fp.viewport,
+        "user_agent": fp.user_agent,
+        "locale": "vi-VN",
+        "timezone_id": "Asia/Ho_Chi_Minh",
+        "java_script_enabled": True,
+    }
+
+    # Proxy support
+    if proxy:
+        protocol = proxy.get("protocol", "http")
+        server = f"{protocol}://{proxy['host']}:{proxy['port']}"
+        ctx_kwargs["proxy"] = {"server": server}
+        if proxy.get("username"):
+            ctx_kwargs["proxy"]["username"] = proxy["username"]
+            ctx_kwargs["proxy"]["password"] = proxy.get("password", "")
+        log.info(f"Proxy: {proxy['host']}:{proxy['port']}")
+
+    context = await browser.new_context(**ctx_kwargs)
+
+    # Inject stealth scripts
+    await context.add_init_script(_build_stealth_script(fp))
+
+    log.debug(
+        f"Context: viewport={fp.viewport['width']}x{fp.viewport['height']} "
+        f"GPU={fp.webgl_renderer[:30]}..."
+    )
 
     return context
 

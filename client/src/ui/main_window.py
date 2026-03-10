@@ -313,6 +313,7 @@ class MainWindow:
         # Stats counters
         self.tasks_completed = 0
         self.tasks_failed = 0
+        self._active_tasks: set[int] = set()
 
     def _setup_callbacks(self):
         set_ui_callback(self._append_log)
@@ -364,9 +365,18 @@ class MainWindow:
         log.info(f"📢 {data.get('message', '')}")
 
     async def _on_task_assign(self, task_data: dict):
-        """Nhận và thực thi task."""
+        """Nhận và thực thi task (hỗ trợ multi-task song song)."""
         task_id = task_data["task_id"]
         job_type = task_data["job_type"]
+
+        # Reject nếu đã đạt max_concurrent
+        if len(self._active_tasks) >= config.max_concurrent:
+            await ws_client.send("task_rejected", {
+                "task_id": task_id,
+                "reason": "browser_busy",
+            })
+            log.info(f"[Task #{task_id}] Từ chối - đang chạy {len(self._active_tasks)} task")
+            return
 
         executor = self.executors.get(job_type)
         if not executor:
@@ -376,7 +386,13 @@ class MainWindow:
             return
 
         await ws_client.send_task_accepted(task_id)
+        self._active_tasks.add(task_id)
 
+        # Chạy task trong asyncio.Task riêng để không block WS loop
+        asyncio.create_task(self._execute_task(task_id, executor, task_data))
+
+    async def _execute_task(self, task_id: int, executor, task_data: dict):
+        """Thực thi task trong background."""
         try:
             result = await executor.execute(task_data)
             await ws_client.send_task_completed(task_id, result)
@@ -385,6 +401,8 @@ class MainWindow:
             log.error(f"[Task #{task_id}] Lỗi: {e}")
             await ws_client.send_task_failed(task_id, "EXECUTION_ERROR", str(e))
             self.tasks_failed += 1
+        finally:
+            self._active_tasks.discard(task_id)
 
         self.root.after(0, lambda: self.lbl_tasks.config(
             text=f"✅ {self.tasks_completed}  ❌ {self.tasks_failed}"

@@ -37,6 +37,8 @@ async def get_online_clients(
                 "tasks_completed": c.tasks_completed,
                 "tasks_failed": c.tasks_failed,
                 "credits_earned": c.credits_earned,
+                "cpu_usage": c.cpu_usage,
+                "memory_usage": c.memory_usage,
                 "connected_at": c.connected_at.isoformat(),
                 "last_heartbeat": c.last_heartbeat.isoformat(),
                 "client_version": c.client_version,

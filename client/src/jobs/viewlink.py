@@ -7,8 +7,10 @@ from src.browser.humanizer import (
     human_delay,
     human_mouse_move,
     human_scroll,
+    micro_movements,
 )
-from src.browser.manager import close_browser, create_context, create_page
+from src.browser.manager import create_context, create_page
+from src.config import config
 from src.jobs.base import BaseJobExecutor
 from src.utils.logger import log
 
@@ -30,7 +32,9 @@ class ViewLinkExecutor(BaseJobExecutor):
 
         log.info(f"[Task #{task_id}] Mở {target_url} (ở lại {stay_time}s)")
 
-        context = await create_context()
+        # Proxy from client config
+        proxy = config.get("proxy")
+        context = await create_context(proxy=proxy)
         page = await create_page(context)
         pages_visited = 1
         internal_clicks = []
@@ -38,18 +42,22 @@ class ViewLinkExecutor(BaseJobExecutor):
         start = time.time()
 
         try:
-            # Truy cập trang chính
-            await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            # Referer spoofing + truy cập trang
+            await self._simulate_referer(page, target_url)
             page_start = time.time()
 
             # Đợi trang load
             await human_delay(1.0, 3.0)
 
-            # Di chuyển chuột
+            # Di chuyển chuột (Bezier)
             await human_mouse_move(page)
 
             # Cuộn trang
             await human_scroll(page, scroll_behavior)
+
+            # Micro movements - giả lập đọc nội dung
+            if random.random() < 0.4:
+                await micro_movements(page, random.uniform(2.0, 5.0))
 
             # Đợi trên trang chính
             main_stay = random.randint(min_time // 2, min_time)
@@ -98,3 +106,31 @@ class ViewLinkExecutor(BaseJobExecutor):
         finally:
             await page.close()
             await context.close()
+
+    async def _simulate_referer(self, page, target_url: str):
+        """Mô phỏng nguồn truy cập (referer) tự nhiên."""
+        roll = random.random()
+
+        if roll < 0.35:
+            # 35%: Từ Google - visit google trước để có referer tự nhiên
+            try:
+                await page.goto("https://www.google.com", wait_until="domcontentloaded", timeout=10000)
+                await human_delay(1.0, 2.0)
+                await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+            except Exception:
+                await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+        elif roll < 0.55:
+            # 20%: Direct - truy cập trực tiếp
+            await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)
+        else:
+            # 45%: Set referer header từ các nguồn phổ biến
+            referers = [
+                "https://www.facebook.com/",
+                "https://t.co/",
+                "https://www.youtube.com/",
+                "https://news.zing.vn/",
+                "https://vnexpress.net/",
+            ]
+            referer = random.choice(referers)
+            await page.set_extra_http_headers({"Referer": referer})
+            await page.goto(target_url, wait_until="domcontentloaded", timeout=30000)

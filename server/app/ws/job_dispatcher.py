@@ -79,9 +79,26 @@ class JobDispatcher:
 
             scored_jobs.sort(key=lambda x: x[0], reverse=True)
 
-            # Assign tasks to available clients
+            # Assign tasks to available clients (multi-task support)
+            # Track which jobs have been assigned this cycle to avoid duplicates
+            assigned_job_ids: set[int] = set()
+
             for client in available_clients:
+                # Calculate available slots for this client
+                slots = client.max_concurrent - len(client.active_tasks)
+                if slots <= 0:
+                    continue
+
+                assigned_this_client = 0
+
                 for score, job in scored_jobs:
+                    if assigned_this_client >= slots:
+                        break
+
+                    # Skip jobs already assigned this cycle
+                    if job.id in assigned_job_ids:
+                        continue
+
                     # Check if client supports this job type
                     if job.job_type.value not in client.enabled_job_types:
                         continue
@@ -131,11 +148,13 @@ class JobDispatcher:
                         await client.send(task_message)
                         client.active_tasks.add(task.id)
                         assigned_count += 1
+                        assigned_this_client += 1
+                        assigned_job_ids.add(job.id)
                         logger.info(
                             f"Task #{task.id} (job #{job.id}) assigned to "
-                            f"session {client.session_id}"
+                            f"session {client.session_id} "
+                            f"(slot {assigned_this_client}/{slots})"
                         )
-                        break  # Move to next client
                     except Exception as e:
                         task.status = TaskStatus.FAILED
                         task.error_message = f"Send failed: {e}"

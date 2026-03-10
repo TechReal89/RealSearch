@@ -9,6 +9,7 @@ from src.browser.humanizer import (
     human_scroll,
 )
 from src.browser.manager import create_context, create_page
+from src.config import config
 from src.jobs.base import BaseJobExecutor
 from src.utils.logger import log
 
@@ -78,7 +79,8 @@ class KeywordSEOExecutor(BaseJobExecutor):
             f"(tối đa {max_search_page} trang)"
         )
 
-        context = await create_context()
+        proxy = config.get("proxy")
+        context = await create_context(proxy=proxy)
         page = await create_page(context)
         start = time.time()
 

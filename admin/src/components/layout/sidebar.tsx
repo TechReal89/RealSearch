@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/ui/logo";
 import {
-  LayoutDashboard, Users, Briefcase, Coins, Wallet, Package, Gift, Monitor, Server, ShieldAlert, Settings, FileText,
+  LayoutDashboard, Users, Briefcase, Coins, Wallet, Package, Gift, Monitor, Server, ShieldAlert, Settings, FileText, KeyRound, BarChart3,
 } from "lucide-react";
 
 const navItems = [
@@ -16,6 +16,8 @@ const navItems = [
   { href: "/payments", label: "Thanh toán", icon: Wallet },
   { href: "/packages", label: "Gói dịch vụ", icon: Package },
   { href: "/promotions", label: "Khuyến mãi", icon: Gift },
+  { href: "/licenses", label: "License", icon: KeyRound },
+  { href: "/analytics", label: "Thống kê", icon: BarChart3 },
   { href: "/monitoring", label: "Giám sát", icon: Monitor },
   { href: "/server-monitor", label: "Máy chủ", icon: Server },
   { href: "/security", label: "Bảo mật", icon: ShieldAlert },
