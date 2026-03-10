@@ -7,8 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.api.v1.router import api_router
+from app.core.rate_limiter import RateLimitMiddleware
 from app.database import engine
 from app.services.sepay_poller import sepay_poller
+from app.services.tier_expiry import tier_expiry_checker
 from app.ws.handler import handle_websocket
 from app.ws.job_dispatcher import dispatcher
 from app.ws.manager import manager
@@ -32,19 +34,29 @@ async def lifespan(app: FastAPI):
     poller_task = asyncio.create_task(sepay_poller.start_polling())
     logger.info("SePay poller started")
 
+    # Start tier expiry checker
+    tier_task = asyncio.create_task(tier_expiry_checker.start())
+    logger.info("Tier expiry checker started")
+
     yield
 
     # Shutdown
     dispatcher.stop()
     sepay_poller.stop()
+    tier_expiry_checker.stop()
     dispatch_task.cancel()
     poller_task.cancel()
+    tier_task.cancel()
     try:
         await dispatch_task
     except asyncio.CancelledError:
         pass
     try:
         await poller_task
+    except asyncio.CancelledError:
+        pass
+    try:
+        await tier_task
     except asyncio.CancelledError:
         pass
     await engine.dispose()
@@ -58,13 +70,22 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# CORS - restrict to known origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://realsearch.techreal.vn",
+        "https://admin.realsearch.techreal.vn",
+        "http://localhost:3000",
+        "http://localhost:3001",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Rate limiting middleware
+app.add_middleware(RateLimitMiddleware)
 
 app.include_router(api_router)
 

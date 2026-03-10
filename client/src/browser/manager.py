@@ -6,7 +6,7 @@ import sys
 
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 
-from src.config import config
+from src.config import config, APP_DIR
 from src.utils.logger import log
 
 _playwright = None
@@ -16,6 +16,13 @@ _browser: Browser | None = None
 _browsers_checked = False
 
 
+def _get_browsers_path() -> str:
+    """Trả về thư mục lưu Chromium cố định (không bị xóa khi tắt app)."""
+    browsers_dir = str(APP_DIR / "browsers")
+    os.makedirs(browsers_dir, exist_ok=True)
+    return browsers_dir
+
+
 def ensure_browsers_installed():
     """Kiểm tra và tự động cài đặt Chromium nếu chưa có."""
     global _browsers_checked
@@ -23,10 +30,15 @@ def ensure_browsers_installed():
         return
     _browsers_checked = True
 
+    # Set PLAYWRIGHT_BROWSERS_PATH to persistent directory
+    # This ensures Chromium is downloaded to %APPDATA%/RealSearch/browsers
+    # instead of the temp _MEIPASS directory
+    browsers_path = _get_browsers_path()
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+
     try:
         if getattr(sys, 'frozen', False):
             # Đang chạy từ PyInstaller .exe
-            # Tìm node executable trong thư mục driver đã bundle
             base_dir = sys._MEIPASS  # type: ignore
             driver_dir = os.path.join(base_dir, "playwright", "driver")
             if os.name == "nt":
@@ -38,13 +50,16 @@ def ensure_browsers_installed():
 
             if os.path.exists(node_exe) and os.path.exists(cli_js):
                 log.info("Kiểm tra và cài đặt trình duyệt Chromium (lần đầu có thể mất vài phút)...")
+                env = os.environ.copy()
+                env["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
                 result = subprocess.run(
                     [node_exe, cli_js, "install", "chromium"],
                     capture_output=True, text=True, timeout=600,
+                    env=env,
                     creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
                 )
                 if result.returncode == 0:
-                    log.info("Chromium đã sẵn sàng")
+                    log.info(f"Chromium đã sẵn sàng ({browsers_path})")
                 else:
                     log.warning(f"Cài Chromium: {result.stdout} {result.stderr}")
             else:
