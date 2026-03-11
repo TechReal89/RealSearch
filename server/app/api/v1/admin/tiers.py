@@ -16,7 +16,10 @@ def _tier_to_dict(t: MembershipTierConfig) -> dict:
     return {
         "id": t.id, "name": t.name, "display_name": t.display_name,
         "color": t.color, "price_monthly": float(t.price_monthly),
-        "price_yearly": float(t.price_yearly), "priority_level": t.priority_level,
+        "price_yearly": float(t.price_yearly),
+        "credit_price_monthly": t.credit_price_monthly,
+        "credit_price_yearly": t.credit_price_yearly,
+        "priority_level": t.priority_level,
         "daily_credit_limit": t.daily_credit_limit, "max_jobs": t.max_jobs,
         "max_urls_per_job": t.max_urls_per_job, "max_clients": t.max_clients,
         "credit_earn_multiplier": float(t.credit_earn_multiplier),

@@ -15,9 +15,13 @@ class MembershipTierConfig(Base):
     color: Mapped[str | None] = mapped_column(String(7), nullable=True)
     icon: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    # Pricing
+    # Pricing (VND - thanh toán tiền thật)
     price_monthly: Mapped[float] = mapped_column(Numeric(12, 0), default=0, server_default="0")
     price_yearly: Mapped[float] = mapped_column(Numeric(12, 0), default=0, server_default="0")
+
+    # Pricing (Credits - thanh toán bằng credit kiếm được)
+    credit_price_monthly: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    credit_price_yearly: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
     # Benefits
     priority_level: Mapped[int] = mapped_column(Integer, default=1, server_default="1")

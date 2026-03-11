@@ -52,6 +52,14 @@ async def create_job(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    # Tính chi phí tối thiểu: credit_per_view * target_count (hoặc budget nếu có)
+    estimated_cost = data.total_credit_budget or (data.credit_per_view * data.target_count)
+    if current_user.credit_balance < data.credit_per_view:
+        raise BadRequestError(
+            f"Không đủ credit. Bạn có {current_user.credit_balance} credit, "
+            f"cần ít nhất {data.credit_per_view} credit/lượt để tạo job."
+        )
+
     job = Job(
         user_id=current_user.id,
         job_type=data.job_type,
@@ -60,7 +68,7 @@ async def create_job(
         target_count=data.target_count,
         daily_limit=data.daily_limit,
         credit_per_view=data.credit_per_view,
-        total_credit_budget=data.total_credit_budget,
+        total_credit_budget=data.total_credit_budget or estimated_cost,
         start_date=data.start_date,
         end_date=data.end_date,
         config=data.config,
@@ -125,6 +133,16 @@ async def start_job(
     if job.status not in (JobStatus.DRAFT, JobStatus.PAUSED):
         raise BadRequestError(f"Cannot start job with status '{job.status.value}'")
 
+    # Kiểm tra credit trước khi start
+    remaining_tasks = job.target_count - job.completed_count
+    cost_per_task = job.credit_per_view
+    if current_user.credit_balance < cost_per_task:
+        raise BadRequestError(
+            f"Không đủ credit để chạy job. Bạn có {current_user.credit_balance} credit, "
+            f"cần ít nhất {cost_per_task} credit/lượt. "
+            f"Còn {remaining_tasks} lượt chưa hoàn thành."
+        )
+
     job.status = JobStatus.ACTIVE
     await db.commit()
     await db.refresh(job)
@@ -156,6 +174,13 @@ async def resume_job(
     job = await _get_user_job(job_id, current_user, db)
     if job.status != JobStatus.PAUSED:
         raise BadRequestError("Can only resume paused jobs")
+
+    # Kiểm tra credit trước khi resume
+    if current_user.credit_balance < job.credit_per_view:
+        raise BadRequestError(
+            f"Không đủ credit để tiếp tục job. Bạn có {current_user.credit_balance} credit, "
+            f"cần ít nhất {job.credit_per_view} credit/lượt."
+        )
 
     job.status = JobStatus.ACTIVE
     await db.commit()

@@ -43,6 +43,8 @@ class TierConfigCreate(BaseModel):
     color: str | None = None
     price_monthly: float = 0
     price_yearly: float = 0
+    credit_price_monthly: int = 0
+    credit_price_yearly: int = 0
     priority_level: int = Field(ge=1, le=10, default=1)
     daily_credit_limit: int = 50
     max_jobs: int = 3

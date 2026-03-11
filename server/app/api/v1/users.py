@@ -1,11 +1,17 @@
+from datetime import datetime, timezone
+
+from dateutil.relativedelta import relativedelta
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import BadRequestError
 from app.database import get_db
 from app.dependencies import get_current_user
+from app.models.credit import CreditTransaction, CreditType
 from app.models.tier import MembershipTierConfig
-from app.models.user import User
+from app.models.user import MembershipTier, User
 from app.schemas.user import UserResponse
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -119,7 +125,7 @@ async def get_user_stats(
 
 @router.get("/tiers")
 async def list_available_tiers(db: AsyncSession = Depends(get_db)):
-    """Lấy danh sách tier và giá cho user."""
+    """Lấy danh sách tier và giá cho user (cả VND và credit)."""
     result = await db.execute(
         select(MembershipTierConfig)
         .where(MembershipTierConfig.is_active == True)
@@ -130,7 +136,10 @@ async def list_available_tiers(db: AsyncSession = Depends(get_db)):
         {
             "id": t.id, "name": t.name, "display_name": t.display_name,
             "color": t.color, "price_monthly": float(t.price_monthly),
-            "price_yearly": float(t.price_yearly), "priority_level": t.priority_level,
+            "price_yearly": float(t.price_yearly),
+            "credit_price_monthly": t.credit_price_monthly,
+            "credit_price_yearly": t.credit_price_yearly,
+            "priority_level": t.priority_level,
             "daily_credit_limit": t.daily_credit_limit, "max_jobs": t.max_jobs,
             "max_urls_per_job": t.max_urls_per_job, "max_clients": t.max_clients,
             "credit_earn_multiplier": float(t.credit_earn_multiplier),
@@ -143,3 +152,90 @@ async def list_available_tiers(db: AsyncSession = Depends(get_db)):
         }
         for t in tiers
     ]
+
+
+class TierUpgradeRequest(BaseModel):
+    tier_id: int
+    duration: str = Field(default="monthly", pattern="^(monthly|yearly)$")
+
+
+@router.post("/tier/upgrade-by-credit")
+async def upgrade_tier_by_credit(
+    data: TierUpgradeRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Nâng cấp tier bằng credit (không cần nạp tiền)."""
+    tier_config = await db.get(MembershipTierConfig, data.tier_id)
+    if not tier_config or not tier_config.is_active:
+        raise BadRequestError("Gói không tồn tại hoặc đã ngừng")
+
+    # Tính giá credit
+    if data.duration == "monthly":
+        credit_cost = tier_config.credit_price_monthly
+    else:
+        credit_cost = tier_config.credit_price_yearly
+
+    if credit_cost <= 0:
+        raise BadRequestError("Gói này không hỗ trợ thanh toán bằng credit")
+
+    # Kiểm tra đủ credit
+    if current_user.credit_balance < credit_cost:
+        raise BadRequestError(
+            f"Không đủ credit. Bạn có {current_user.credit_balance} credit, "
+            f"cần {credit_cost} credit cho gói {tier_config.display_name} "
+            f"({'tháng' if data.duration == 'monthly' else 'năm'})."
+        )
+
+    # Trừ credit
+    current_user.credit_balance -= credit_cost
+    current_user.total_spent += credit_cost
+
+    # Nâng tier
+    tier_map = {
+        "bronze": MembershipTier.BRONZE,
+        "silver": MembershipTier.SILVER,
+        "gold": MembershipTier.GOLD,
+        "diamond": MembershipTier.DIAMOND,
+    }
+    old_tier = current_user.tier.value
+    new_tier_enum = tier_map.get(tier_config.name)
+    if new_tier_enum:
+        current_user.tier = new_tier_enum
+
+    # Tính thời hạn
+    duration_months = 1 if data.duration == "monthly" else 12
+    now = datetime.now(timezone.utc)
+    base_date = (
+        current_user.tier_expires
+        if current_user.tier_expires and current_user.tier_expires > now
+        else now
+    )
+    current_user.tier_expires = base_date + relativedelta(months=duration_months)
+
+    # Ghi transaction
+    txn = CreditTransaction(
+        user_id=current_user.id,
+        type=CreditType.SPEND_JOB,
+        amount=-credit_cost,
+        balance_after=current_user.credit_balance,
+        description=(
+            f"Nâng cấp {tier_config.display_name} "
+            f"({'tháng' if data.duration == 'monthly' else 'năm'}) "
+            f"bằng {credit_cost} credit"
+        ),
+        reference_type="tier_upgrade",
+        reference_id=tier_config.id,
+    )
+    db.add(txn)
+    await db.commit()
+    await db.refresh(current_user)
+
+    return {
+        "success": True,
+        "old_tier": old_tier,
+        "new_tier": current_user.tier.value,
+        "credit_deducted": credit_cost,
+        "credit_balance": current_user.credit_balance,
+        "tier_expires": current_user.tier_expires.isoformat(),
+    }

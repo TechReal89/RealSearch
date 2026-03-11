@@ -118,6 +118,15 @@ class JobDispatcher:
                     if job.user_id == client.user_id:
                         continue
 
+                    # Check if job owner has enough credits to pay for this task
+                    job_owner = await db.get(User, job.user_id)
+                    if not job_owner or job_owner.credit_balance < job.credit_per_view:
+                        logger.info(
+                            f"Job #{job.id}: owner #{job.user_id} không đủ credit "
+                            f"({job_owner.credit_balance if job_owner else 0} < {job.credit_per_view})"
+                        )
+                        continue
+
                     # Create task
                     task = Task(
                         job_id=job.id,
@@ -194,7 +203,48 @@ class JobDispatcher:
                 if job.completed_count >= job.target_count:
                     job.status = JobStatus.COMPLETED
 
-            # Credit the worker
+            # Deduct credits from job owner (SPEND)
+            if job:
+                job_owner = await db.get(User, job.user_id)
+                if job_owner:
+                    deduct = job.credit_per_view
+                    job_owner.credit_balance -= deduct
+                    job_owner.total_spent += deduct
+
+                    spend_txn = CreditTransaction(
+                        user_id=job_owner.id,
+                        type=CreditType.SPEND_JOB,
+                        amount=-deduct,
+                        balance_after=job_owner.credit_balance,
+                        description=f"Job #{job.id} task #{task.id} ({job.job_type.value})",
+                        reference_type="task",
+                        reference_id=task.id,
+                    )
+                    db.add(spend_txn)
+
+                    logger.info(
+                        f"Job owner #{job_owner.id}: -{deduct} credits, "
+                        f"balance={job_owner.credit_balance}"
+                    )
+
+                    # Auto-pause job nếu owner hết credit
+                    if job_owner.credit_balance < job.credit_per_view:
+                        job.status = JobStatus.PAUSED
+                        logger.info(
+                            f"Job #{job.id}: auto-paused - owner hết credit "
+                            f"(balance={job_owner.credit_balance})"
+                        )
+                        # Notify owner
+                        await manager.send_to_user(job_owner.id, {
+                            "type": "broadcast",
+                            "data": {
+                                "message": f"Job '{job.title}' đã tạm dừng vì hết credit. "
+                                           f"Hãy kiếm thêm credit hoặc nạp thêm.",
+                                "level": "warning",
+                            },
+                        })
+
+            # Credit the worker (EARN)
             if task.assigned_to:
                 worker = await db.get(User, task.assigned_to)
                 if worker and job:
