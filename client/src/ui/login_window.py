@@ -56,8 +56,35 @@ def _clear_credentials():
 
 
 class LoginWindow:
-    def __init__(self, on_login_success):
+    def __init__(self, on_login_success, silent: bool = False):
+        """
+        Args:
+            on_login_success: Callback khi đăng nhập thành công.
+            silent: Nếu True, tự động đăng nhập không hiện UI (cho autostart).
+        """
         self.on_login_success = on_login_success
+        self.silent = silent
+
+        # Silent mode: thử đăng nhập không cần UI
+        if self.silent:
+            saved = _load_credentials()
+            if saved:
+                try:
+                    from src.utils.logger import log
+                    log.info("Autostart: đang tự động đăng nhập...")
+                    loop = asyncio.new_event_loop()
+                    loop.run_until_complete(api.login(saved[0], saved[1]))
+                    user = loop.run_until_complete(api.get_me())
+                    loop.close()
+                    log.info(f"Autostart: đăng nhập thành công - {user['username']}")
+                    self._silent_success = user
+                    return
+                except Exception as e:
+                    from src.utils.logger import log
+                    log.warning(f"Autostart: đăng nhập thất bại - {e}")
+                    self.silent = False  # Fallback sang UI
+
+        self._silent_success = None
         self.root = tk.Tk()
         self.root.title(f"RealSearch v{get_version()}")
         self.root.geometry("440x500")
@@ -260,4 +287,8 @@ class LoginWindow:
         self.on_login_success(user)
 
     def run(self):
+        # Nếu đã silent login thành công -> skip UI
+        if self._silent_success:
+            self.on_login_success(self._silent_success)
+            return
         self.root.mainloop()

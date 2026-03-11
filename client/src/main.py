@@ -53,17 +53,18 @@ def self_install():
         except Exception:
             pass
 
-        # Thông báo user
-        import tkinter.messagebox as mb
-        root = tk.Tk()
-        root.withdraw()
-        mb.showinfo(
-            "Real SEO - Đã cài đặt",
-            f"Real SEO đã được cài vào:\n{installed_exe}\n\n"
-            f"Shortcut đã tạo trên Desktop.\n"
-            f"Bạn có thể xoá file hiện tại tại:\n{current_exe}"
-        )
-        root.destroy()
+        # Thông báo user (bỏ qua nếu autostart mode)
+        if "--autostart" not in sys.argv:
+            import tkinter.messagebox as mb
+            root = tk.Tk()
+            root.withdraw()
+            mb.showinfo(
+                "Real SEO - Đã cài đặt",
+                f"Real SEO đã được cài vào:\n{installed_exe}\n\n"
+                f"Shortcut đã tạo trên Desktop.\n"
+                f"Bạn có thể xoá file hiện tại tại:\n{current_exe}"
+            )
+            root.destroy()
     except Exception as e:
         log.warning(f"Không thể tự cài đặt: {e}")
 
@@ -176,16 +177,29 @@ def check_update_on_startup():
         log.warning(f"Không thể kiểm tra cập nhật: {e}")
 
 
+def is_autostart_mode() -> bool:
+    """Kiểm tra xem app có được khởi động tự động không."""
+    return "--autostart" in sys.argv
+
+
 def on_login_success(user_data: dict):
     """Callback khi đăng nhập thành công."""
     from src.ui.main_window import MainWindow
     window = MainWindow(user_data)
+
+    # Nếu autostart mode -> tự động bắt đầu
+    if is_autostart_mode():
+        from src.config import config
+        config.set("auto_start", True)
+        log.info("Chế độ autostart: tự động bắt đầu kết nối")
+
     window.run()
 
 
 def main():
     version = get_version()
-    log.info(f"Real SEO v{version} khởi động")
+    autostart = is_autostart_mode()
+    log.info(f"Real SEO v{version} khởi động" + (" (autostart)" if autostart else ""))
 
     # Tự cài đặt vào thư mục cố định nếu chạy lần đầu
     self_install()
@@ -194,7 +208,7 @@ def main():
     check_update_on_startup()
 
     from src.ui.login_window import LoginWindow
-    login = LoginWindow(on_login_success)
+    login = LoginWindow(on_login_success, silent=autostart)
     login.run()
 
 

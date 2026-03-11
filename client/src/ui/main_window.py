@@ -11,6 +11,9 @@ from src.jobs.backlink import BacklinkExecutor
 from src.jobs.social_media import SocialMediaExecutor
 from src.network.api_client import api
 from src.network.ws_client import ws_client, set_callbacks
+from src.ui.tray_icon import TrayIcon
+from src.ui.scheduler import ScheduleManager
+from src.utils.autostart import is_autostart_enabled, enable_autostart, disable_autostart
 from src.utils.logger import log, set_ui_callback
 
 # === VIP Gold Color Palette ===
@@ -34,6 +37,8 @@ COLORS = {
     "orange": "#f97316",
 }
 
+DAY_NAMES = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+
 
 class MainWindow:
     def __init__(self, user_data: dict):
@@ -52,8 +57,8 @@ class MainWindow:
 
         self.root = tk.Tk()
         self.root.title(f"RealSearch v{get_version()}")
-        self.root.geometry("750x550")
-        self.root.minsize(650, 450)
+        self.root.geometry("750x600")
+        self.root.minsize(650, 500)
         self.root.configure(bg=COLORS["bg"])
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -64,6 +69,16 @@ class MainWindow:
                 self.root.iconbitmap(icon_path)
             except Exception:
                 pass
+
+        # System Tray
+        self.tray = TrayIcon(self.root, icon_path, on_quit=self._on_quit)
+        self.tray.setup()
+
+        # Schedule Manager
+        self.scheduler = ScheduleManager(
+            on_start=lambda: self.root.after(0, self._start),
+            on_stop=lambda: self.root.after(0, self._stop),
+        )
 
         self._setup_styles()
         self._build_ui()
@@ -113,6 +128,15 @@ class MainWindow:
         style.map("Ghost.TButton",
                    background=[("active", COLORS["border"])])
 
+        style.configure("Small.TButton",
+                        background=COLORS["border"],
+                        foreground=COLORS["text_muted"],
+                        borderwidth=0,
+                        font=("Segoe UI", 8),
+                        padding=(6, 4))
+        style.map("Small.TButton",
+                   background=[("active", "#2a2a3a")])
+
         # Combobox
         style.configure("TCombobox",
                         fieldbackground=COLORS["bg_input"],
@@ -133,6 +157,14 @@ class MainWindow:
                         background=COLORS["bg_card"],
                         foreground=COLORS["gold"],
                         font=("Segoe UI", 9, "bold"))
+
+        # Checkbutton
+        style.configure("TCheckbutton",
+                        background=COLORS["bg_card"],
+                        foreground=COLORS["text_muted"],
+                        font=("Segoe UI", 9))
+        style.map("TCheckbutton",
+                   background=[("active", COLORS["bg_card"])])
 
     def _build_ui(self):
         # === Header Bar ===
@@ -265,6 +297,9 @@ class MainWindow:
         self.combo_mode.pack(side="left")
         self.combo_mode.bind("<<ComboboxSelected>>", self._on_mode_change)
 
+        # === Schedule & Autostart Settings ===
+        self._build_schedule_panel()
+
         # === Ornament line ===
         ornament = tk.Canvas(self.root, width=2000, height=1, bg=COLORS["bg"],
                              highlightthickness=0)
@@ -315,6 +350,192 @@ class MainWindow:
         self.tasks_failed = 0
         self._active_tasks: set[int] = set()
 
+    def _build_schedule_panel(self):
+        """Xây dựng panel cài đặt hẹn giờ & autostart."""
+        panel = tk.Frame(self.root, bg=COLORS["bg_card"], padx=12, pady=8,
+                         highlightbackground=COLORS["border_gold"], highlightthickness=1)
+        panel.pack(fill="x", padx=15, pady=(5, 0))
+
+        # Row 1: Header
+        header_row = tk.Frame(panel, bg=COLORS["bg_card"])
+        header_row.pack(fill="x")
+        tk.Label(
+            header_row, text="⚙️  CÀI ĐẶT TỰ ĐỘNG",
+            font=("Segoe UI", 9, "bold"),
+            bg=COLORS["bg_card"], fg=COLORS["gold"]
+        ).pack(side="left")
+
+        # Toggle expand/collapse
+        self._settings_expanded = True
+        self._settings_content = tk.Frame(panel, bg=COLORS["bg_card"])
+        self._settings_content.pack(fill="x", pady=(5, 0))
+
+        # Row 2: Schedule controls
+        sched_row = tk.Frame(self._settings_content, bg=COLORS["bg_card"])
+        sched_row.pack(fill="x", pady=(0, 5))
+
+        # Schedule enable checkbox
+        self._schedule_var = tk.BooleanVar(value=config.get("schedule_enabled", False))
+        ttk.Checkbutton(
+            sched_row, text="Hẹn giờ chạy:",
+            variable=self._schedule_var,
+            command=self._on_schedule_toggle,
+            style="TCheckbutton"
+        ).pack(side="left")
+
+        # Start time
+        tk.Label(sched_row, text="Bắt đầu:", font=("Segoe UI", 9),
+                 bg=COLORS["bg_card"], fg=COLORS["text_muted"]).pack(side="left", padx=(10, 3))
+
+        self._start_hour = ttk.Combobox(sched_row, values=[f"{h:02d}" for h in range(24)],
+                                        width=3, state="readonly")
+        start_time = config.get("schedule_time", "22:00")
+        self._start_hour.set(start_time.split(":")[0])
+        self._start_hour.pack(side="left")
+
+        tk.Label(sched_row, text=":", bg=COLORS["bg_card"], fg=COLORS["text_muted"]).pack(side="left")
+
+        self._start_min = ttk.Combobox(sched_row, values=[f"{m:02d}" for m in range(0, 60, 5)],
+                                       width=3, state="readonly")
+        self._start_min.set(start_time.split(":")[1])
+        self._start_min.pack(side="left")
+
+        # Stop time
+        tk.Label(sched_row, text="  Dừng:", font=("Segoe UI", 9),
+                 bg=COLORS["bg_card"], fg=COLORS["text_muted"]).pack(side="left", padx=(10, 3))
+
+        self._stop_hour = ttk.Combobox(sched_row, values=["--"] + [f"{h:02d}" for h in range(24)],
+                                       width=3, state="readonly")
+        self._stop_min = ttk.Combobox(sched_row, values=["--"] + [f"{m:02d}" for m in range(0, 60, 5)],
+                                      width=3, state="readonly")
+
+        stop_time = config.get("schedule_stop_time")
+        if stop_time:
+            self._stop_hour.set(stop_time.split(":")[0])
+            self._stop_min.set(stop_time.split(":")[1])
+        else:
+            self._stop_hour.set("--")
+            self._stop_min.set("--")
+
+        self._stop_hour.pack(side="left")
+        tk.Label(sched_row, text=":", bg=COLORS["bg_card"], fg=COLORS["text_muted"]).pack(side="left")
+        self._stop_min.pack(side="left")
+
+        # Save schedule button
+        ttk.Button(sched_row, text="Lưu", command=self._save_schedule,
+                   style="Small.TButton", width=5).pack(side="left", padx=(10, 0))
+
+        # Row 3: Day selector
+        day_row = tk.Frame(self._settings_content, bg=COLORS["bg_card"])
+        day_row.pack(fill="x", pady=(0, 5))
+
+        tk.Label(day_row, text="Ngày chạy:", font=("Segoe UI", 9),
+                 bg=COLORS["bg_card"], fg=COLORS["text_muted"]).pack(side="left", padx=(0, 8))
+
+        saved_days = config.get("schedule_days", [0, 1, 2, 3, 4, 5, 6])
+        self._day_vars = []
+        for i, name in enumerate(DAY_NAMES):
+            var = tk.BooleanVar(value=(i in saved_days))
+            self._day_vars.append(var)
+            ttk.Checkbutton(
+                day_row, text=name, variable=var,
+                style="TCheckbutton"
+            ).pack(side="left", padx=2)
+
+        # Row 4: Autostart + Tray
+        auto_row = tk.Frame(self._settings_content, bg=COLORS["bg_card"])
+        auto_row.pack(fill="x")
+
+        # Autostart Windows
+        self._autostart_var = tk.BooleanVar(value=is_autostart_enabled())
+        ttk.Checkbutton(
+            auto_row, text="Khởi động cùng Windows",
+            variable=self._autostart_var,
+            command=self._on_autostart_toggle,
+            style="TCheckbutton"
+        ).pack(side="left")
+
+        # Minimize to tray
+        self._tray_var = tk.BooleanVar(value=config.get("minimize_to_tray", True))
+        ttk.Checkbutton(
+            auto_row, text="Thu nhỏ xuống khay khi đóng",
+            variable=self._tray_var,
+            command=self._on_tray_toggle,
+            style="TCheckbutton"
+        ).pack(side="left", padx=(20, 0))
+
+        # Schedule status label
+        self._sched_status = tk.Label(
+            auto_row, text="",
+            font=("Segoe UI", 8),
+            bg=COLORS["bg_card"], fg=COLORS["text_dim"]
+        )
+        self._sched_status.pack(side="right")
+        self._update_schedule_status()
+
+    def _update_schedule_status(self):
+        """Cập nhật label hiển thị trạng thái hẹn giờ."""
+        if config.get("schedule_enabled"):
+            t = config.get("schedule_time", "22:00")
+            stop = config.get("schedule_stop_time")
+            days = config.get("schedule_days", [0, 1, 2, 3, 4, 5, 6])
+            day_str = ", ".join(DAY_NAMES[d] for d in days if d < 7)
+            text = f"⏰ {t}"
+            if stop:
+                text += f" → {stop}"
+            text += f" | {day_str}"
+            self._sched_status.config(text=text, fg=COLORS["green"])
+        else:
+            self._sched_status.config(text="Hẹn giờ: TẮT", fg=COLORS["text_dim"])
+
+    def _on_schedule_toggle(self):
+        """Toggle hẹn giờ bật/tắt."""
+        enabled = self._schedule_var.get()
+        if enabled:
+            self._save_schedule()
+        else:
+            config.set("schedule_enabled", False)
+            log.info("Đã tắt hẹn giờ")
+        self._update_schedule_status()
+
+    def _save_schedule(self):
+        """Lưu cấu hình hẹn giờ."""
+        start_time = f"{self._start_hour.get()}:{self._start_min.get()}"
+
+        stop_h = self._stop_hour.get()
+        stop_m = self._stop_min.get()
+        stop_time = None
+        if stop_h != "--" and stop_m != "--":
+            stop_time = f"{stop_h}:{stop_m}"
+
+        days = [i for i, var in enumerate(self._day_vars) if var.get()]
+        if not days:
+            days = [0, 1, 2, 3, 4, 5, 6]
+
+        enabled = self._schedule_var.get()
+        self.scheduler.update_config(enabled, start_time, stop_time, days)
+        self._update_schedule_status()
+        log.info(f"Đã lưu hẹn giờ: {start_time}" + (f" → {stop_time}" if stop_time else ""))
+
+    def _on_autostart_toggle(self):
+        """Toggle khởi động cùng Windows."""
+        if self._autostart_var.get():
+            if enable_autostart():
+                config.set("autostart_windows", True)
+                log.info("Đã bật khởi động cùng Windows")
+            else:
+                self._autostart_var.set(False)
+        else:
+            disable_autostart()
+            config.set("autostart_windows", False)
+            log.info("Đã tắt khởi động cùng Windows")
+
+    def _on_tray_toggle(self):
+        """Toggle minimize to tray."""
+        config.set("minimize_to_tray", self._tray_var.get())
+        state = "BẬT" if self._tray_var.get() else "TẮT"
+        log.info(f"Thu nhỏ xuống khay: {state}")
+
     def _setup_callbacks(self):
         set_ui_callback(self._append_log)
         set_callbacks(
@@ -348,11 +569,14 @@ class MainWindow:
                     text="🟢  Đã kết nối - Đang chờ task",
                     fg=COLORS["green"]
                 )
+                # Update tray status
+                self.root._main_window_running = True
             else:
                 self.lbl_status.config(
                     text="🔴  Mất kết nối",
                     fg=COLORS["red"]
                 )
+                self.root._main_window_running = False
         self.root.after(0, _do)
 
     def _on_credit_update(self, data: dict):
@@ -414,6 +638,7 @@ class MainWindow:
             return
 
         self.running = True
+        self.root._main_window_running = True
         self.btn_start.config(state="disabled")
         self.btn_stop.config(state="normal")
         self.lbl_status.config(text="🟡  Đang kết nối...", fg=COLORS["yellow"])
@@ -441,6 +666,7 @@ class MainWindow:
             return
 
         self.running = False
+        self.root._main_window_running = False
         log.info("Đang dừng...")
 
         if self._loop and self._loop.is_running():
@@ -457,7 +683,7 @@ class MainWindow:
         log.info(f"Đổi chế độ trình duyệt: {display}")
 
     def _logout(self):
-        self._stop()
+        self._cleanup()
         api.logout()
         self.root.destroy()
         # Restart login
@@ -467,12 +693,31 @@ class MainWindow:
         login.run()
 
     def _on_close(self):
-        self._stop()
+        """Xử lý khi ấn nút X."""
+        # Nếu bật minimize to tray và tray khả dụng -> ẩn xuống tray
+        if config.get("minimize_to_tray", True) and self.tray.available:
+            if self.tray.hide_to_tray():
+                return
+        # Nếu không có tray -> thoát hoàn toàn
+        self._on_quit()
+
+    def _on_quit(self):
+        """Thoát hoàn toàn ứng dụng."""
+        self._cleanup()
         self.root.destroy()
+
+    def _cleanup(self):
+        """Dọn dẹp trước khi thoát."""
+        self._stop()
+        self.scheduler.stop_monitoring()
+        self.tray.destroy()
 
     def run(self):
         log.info(f"RealSearch {get_version()} - Sẵn sàng")
         log.info(f"User: {self.user['username']} | Tier: {self.user.get('tier', 'bronze').title()}")
+
+        # Start schedule monitoring
+        self.scheduler.start_monitoring()
 
         if config.get("auto_start"):
             self.root.after(1000, self._start)

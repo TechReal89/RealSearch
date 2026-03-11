@@ -50,6 +50,15 @@ DEFAULT_CONFIG = {
     "max_concurrent": 1,
     "auto_start": False,
     "proxy": None,  # {"host": "", "port": 0, "username": "", "password": ""}
+    # Schedule
+    "schedule_enabled": False,
+    "schedule_time": "22:00",
+    "schedule_stop_time": None,
+    "schedule_days": [0, 1, 2, 3, 4, 5, 6],
+    # Tray
+    "minimize_to_tray": True,
+    # Autostart
+    "autostart_windows": False,
 }
 
 
