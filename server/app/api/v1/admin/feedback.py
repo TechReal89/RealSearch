@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.dependencies import get_admin_user
 from app.models.credit import CreditTransaction, CreditType
-from app.models.feedback import Feedback, FeedbackStatus
+from app.models.feedback import Feedback, FeedbackStatus, FeedbackType
 from app.models.user import User
 
 router = APIRouter(prefix="/admin/feedback", tags=["Admin Feedback"])
@@ -35,11 +35,19 @@ async def list_feedbacks(
     count_base = select(func.count(Feedback.id))
 
     if status:
-        base = base.where(Feedback.status == status)
-        count_base = count_base.where(Feedback.status == status)
+        try:
+            status_enum = FeedbackStatus(status)
+        except ValueError:
+            raise HTTPException(400, f"Invalid status: {status}")
+        base = base.where(Feedback.status == status_enum)
+        count_base = count_base.where(Feedback.status == status_enum)
     if feedback_type:
-        base = base.where(Feedback.type == feedback_type)
-        count_base = count_base.where(Feedback.type == feedback_type)
+        try:
+            type_enum = FeedbackType(feedback_type)
+        except ValueError:
+            raise HTTPException(400, f"Invalid type: {feedback_type}")
+        base = base.where(Feedback.type == type_enum)
+        count_base = count_base.where(Feedback.type == type_enum)
 
     total = (await db.execute(count_base)).scalar() or 0
 
@@ -157,8 +165,10 @@ async def review_feedback(
     if data.status == "approved" and data.credit_reward > 0:
         feedback.credit_reward = data.credit_reward
 
-        # Update user balance
-        user_result = await db.execute(select(User).where(User.id == feedback.user_id))
+        # Update user balance (with row lock to prevent race condition)
+        user_result = await db.execute(
+            select(User).where(User.id == feedback.user_id).with_for_update()
+        )
         user = user_result.scalar_one_or_none()
         if user:
             user.credit_balance += data.credit_reward
