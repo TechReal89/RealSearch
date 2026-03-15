@@ -12,20 +12,22 @@ interface Article {
   slug: string;
   excerpt?: string;
   thumbnail?: string;
-  created_at: string;
+  published_at?: string;
+  created_at?: string;
 }
 
 interface ArticleListResponse {
-  items: Article[];
+  articles: Article[];
   total: number;
-  page: number;
-  pages: number;
 }
+
+const PAGE_SIZE = 20;
 
 export default function GuidePage() {
   const [data, setData] = useState<ArticleListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
+  const totalPages = data ? Math.ceil(data.total / PAGE_SIZE) : 0;
 
   useEffect(() => {
     setLoading(true);
@@ -69,7 +71,7 @@ export default function GuidePage() {
         )}
 
         {/* Empty state */}
-        {!loading && (!data || !data.items || data.items.length === 0) && (
+        {!loading && (!data || !data.articles || data.articles.length === 0) && (
           <div className="luxury-card rounded-xl p-12 text-center">
             <BookOpen className="w-12 h-12 text-[#555] mx-auto mb-4" />
             <p className="text-[#8a8999] text-lg">Chua co bai huong dan nao</p>
@@ -78,10 +80,10 @@ export default function GuidePage() {
         )}
 
         {/* Article Grid */}
-        {!loading && data && data.items && data.items.length > 0 && (
+        {!loading && data && data.articles && data.articles.length > 0 && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-              {data.items.map((article) => (
+              {data.articles.map((article) => (
                 <Link
                   key={article.id}
                   href={`/guide/${article.slug}`}
@@ -116,7 +118,7 @@ export default function GuidePage() {
                       <div className="flex items-center gap-1.5 text-[#555]">
                         <Calendar className="w-3 h-3" />
                         <span className="text-[10px]">
-                          {new Date(article.created_at).toLocaleDateString("vi-VN")}
+                          {new Date(article.published_at || article.created_at || "").toLocaleDateString("vi-VN")}
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-[#d4a84b] opacity-0 group-hover:opacity-100 transition-opacity">
@@ -130,7 +132,7 @@ export default function GuidePage() {
             </div>
 
             {/* Pagination */}
-            {data.pages > 1 && (
+            {totalPages > 1 && (
               <div className="flex items-center justify-center gap-2 pt-4">
                 <button
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
@@ -140,11 +142,11 @@ export default function GuidePage() {
                   <ChevronLeft className="w-4 h-4" />
                 </button>
                 <span className="text-sm text-[#8a8999]">
-                  Trang {data.page} / {data.pages}
+                  Trang {page} / {totalPages}
                 </span>
                 <button
-                  onClick={() => setPage((p) => Math.min(data.pages, p + 1))}
-                  disabled={page >= data.pages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
                   className="p-2 rounded-lg text-[#8a8999] hover:text-[#f5f0e8] hover:bg-[rgba(255,255,255,0.04)] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
                 >
                   <ChevronRight className="w-4 h-4" />

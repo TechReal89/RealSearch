@@ -493,34 +493,49 @@ function AdminJobForm({
       {form.job_type === "backlink" && (
         <div className="space-y-3 border rounded-lg p-4 bg-muted/30">
           <p className="text-sm font-medium">Cấu hình Backlink</p>
+          <p className="text-xs text-muted-foreground">
+            Client sẽ mở bài viết chứa backlink → đọc tự nhiên → tìm anchor text → click vào link đích → duyệt trang đích
+          </p>
           <div>
-            <Label className="text-xs">Anchor texts (mỗi dòng 1 anchor)</Label>
+            <Label className="text-xs">URL bài viết chứa backlink (mỗi dòng 1 URL)</Label>
+            <Textarea
+              value={((form.config.article_urls as string[]) || []).join("\n")}
+              onChange={(e) => updateConfig("article_urls", e.target.value.split("\n").filter(Boolean))}
+              placeholder={"https://blog.example.com/bai-viet-1\nhttps://forum.example.com/thread-2\nhttps://medium.com/@user/bai-viet-3"}
+              rows={3}
+            />
+          </div>
+          <div>
+            <Label className="text-xs">Anchor text cần tìm và click (mỗi dòng 1 anchor)</Label>
             <Textarea
               value={((form.config.anchor_texts as string[]) || []).join("\n")}
               onChange={(e) => updateConfig("anchor_texts", e.target.value.split("\n").filter(Boolean))}
-              placeholder={"trang web hay\nxem thêm tại đây"}
+              placeholder={"xem thêm tại đây\ntham khảo bài viết\ntrang web hữu ích"}
               rows={3}
             />
+            <p className="text-xs text-muted-foreground mt-1">
+              Client sẽ tìm link có text khớp anchor. Nếu không tìm thấy, sẽ tìm link có href chứa domain đích.
+            </p>
           </div>
-          <div>
-            <Label className="text-xs">Trang đặt backlink (mỗi dòng 1 URL)</Label>
-            <Textarea
-              value={((form.config.target_sites as string[]) || []).join("\n")}
-              onChange={(e) => updateConfig("target_sites", e.target.value.split("\n").filter(Boolean))}
-              placeholder={"https://directory1.com/submit\nhttps://forum.example.com/post"}
-              rows={3}
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Thời gian đọc bài viết min (s)</Label>
+              <Input type="number" value={(form.config.min_time_on_site as number) || 20} onChange={(e) => updateConfig("min_time_on_site", +e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs">Thời gian đọc bài viết max (s)</Label>
+              <Input type="number" value={(form.config.max_time_on_site as number) || 60} onChange={(e) => updateConfig("max_time_on_site", +e.target.value)} />
+            </div>
           </div>
-          <div>
-            <Label className="text-xs">Loại backlink</Label>
-            <Select value={(form.config.backlink_type as string) || "directory"} onValueChange={(v) => updateConfig("backlink_type", v)}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="directory">Directory (thư mục web)</SelectItem>
-                <SelectItem value="comment">Comment (bình luận)</SelectItem>
-                <SelectItem value="forum">Forum (diễn đàn)</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Thời gian trên trang đích min (s)</Label>
+              <Input type="number" value={(form.config.min_time_on_target as number) || 30} onChange={(e) => updateConfig("min_time_on_target", +e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs">Thời gian trên trang đích max (s)</Label>
+              <Input type="number" value={(form.config.max_time_on_target as number) || 120} onChange={(e) => updateConfig("max_time_on_target", +e.target.value)} />
+            </div>
           </div>
         </div>
       )}

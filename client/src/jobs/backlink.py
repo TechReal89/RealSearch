@@ -1,11 +1,15 @@
-"""Backlink executor - tạo backlink trên các trang web mục tiêu."""
+"""Backlink executor - truy cập bài viết chứa backlink, tìm anchor text, click vào link đích."""
 import random
 import time
 
-from src.browser.humanizer import human_delay, human_mouse_move, human_scroll
+from src.browser.humanizer import (
+    human_delay,
+    human_mouse_move,
+    human_scroll,
+    micro_movements,
+)
 from src.browser.manager import create_context, create_page
 from src.jobs.base import BaseJobExecutor
-from src.jobs.keyword_seo import human_type
 from src.utils.logger import log
 
 
@@ -16,25 +20,31 @@ class BacklinkExecutor(BaseJobExecutor):
         task_id = task_data["task_id"]
         cfg = task_data.get("config", {})
 
+        # article_url: bài viết chứa backlink
+        # target_url: URL đích mà backlink trỏ tới (job.target_url)
+        # anchor_texts: danh sách anchor text cần tìm và click
+        article_urls = cfg.get("article_urls", [])
         target_url = cfg.get("target_url", "")
         anchor_texts = cfg.get("anchor_texts", [])
-        target_sites = cfg.get("target_sites", [])
-        backlink_type = cfg.get("backlink_type", "directory")
+        min_time = cfg.get("min_time_on_site", 20)
+        max_time = cfg.get("max_time_on_site", 60)
+        min_time_target = cfg.get("min_time_on_target", 30)
+        max_time_target = cfg.get("max_time_on_target", 120)
+        scroll_behavior = cfg.get("scroll_behavior", "natural")
 
+        if not article_urls:
+            raise ValueError("Không có article_urls (URL bài viết chứa backlink)")
         if not target_url:
-            raise ValueError("Không có target_url")
+            raise ValueError("Không có target_url (URL đích)")
 
-        # Chọn anchor text ngẫu nhiên
-        anchor_text = random.choice(anchor_texts) if anchor_texts else target_url
-
-        # Chọn site mục tiêu ngẫu nhiên
-        if not target_sites:
-            raise ValueError("Không có target_sites để tạo backlink")
-        site = random.choice(target_sites)
+        # Chọn ngẫu nhiên 1 bài viết
+        article_url = random.choice(article_urls)
+        stay_time = random.randint(min_time, max_time)
+        target_stay = random.randint(min_time_target, max_time_target)
 
         log.info(
-            f"[Task #{task_id}] Backlink: tạo link '{anchor_text}' → {target_url} "
-            f"trên {site} (type={backlink_type})"
+            f"[Task #{task_id}] Backlink: đọc {article_url} → "
+            f"tìm anchor → click → {target_url}"
         )
 
         proxy = self._get_proxy()
@@ -43,220 +53,174 @@ class BacklinkExecutor(BaseJobExecutor):
         start = time.time()
 
         try:
-            result = await self._create_backlink(
-                page=page,
-                task_id=task_id,
-                target_url=target_url,
-                anchor_text=anchor_text,
-                site=site,
-                backlink_type=backlink_type,
+            # --- BƯỚC 1: Mở bài viết chứa backlink ---
+            try:
+                await page.goto(
+                    article_url, wait_until="domcontentloaded", timeout=30000
+                )
+            except Exception as e:
+                log.warning(f"[Task #{task_id}] Không mở được {article_url}: {e}")
+                return {
+                    "actual_url_visited": article_url,
+                    "backlink_clicked": False,
+                    "target_url": target_url,
+                    "article_url": article_url,
+                    "pages_visited": 0,
+                    "scroll_depth": 0,
+                    "total_time": int(time.time() - start),
+                    "error": str(e),
+                }
+
+            # --- BƯỚC 2: Đọc bài viết tự nhiên ---
+            await human_delay(1.5, 3.0)
+            await human_mouse_move(page)
+            await human_scroll(page, scroll_behavior)
+
+            # Micro movements giả lập đọc
+            if random.random() < 0.5:
+                await micro_movements(page, random.uniform(3.0, 6.0))
+
+            # Ở trên bài viết
+            article_stay = random.randint(stay_time // 2, stay_time)
+            await human_delay(article_stay, article_stay + 5)
+
+            # Tính scroll depth trên bài viết
+            article_scroll = await page.evaluate("""
+                () => {
+                    const st = window.pageYOffset || document.documentElement.scrollTop;
+                    const sh = document.documentElement.scrollHeight;
+                    const ch = document.documentElement.clientHeight;
+                    if (sh <= ch) return 1.0;
+                    return Math.min(1.0, (st + ch) / sh);
+                }
+            """)
+
+            # --- BƯỚC 3: Tìm và click anchor text/link đích ---
+            backlink_clicked = False
+            click_method = "none"
+
+            # Thử tìm link theo anchor text trước
+            if anchor_texts:
+                for anchor in anchor_texts:
+                    if not anchor.strip():
+                        continue
+                    # Tìm link <a> chứa text giống anchor
+                    link = page.locator(f'a:has-text("{anchor.strip()}")')
+                    count = await link.count()
+                    if count > 0:
+                        # Cuộn đến link
+                        try:
+                            await link.first.scroll_into_view_if_needed()
+                            await human_delay(0.5, 1.5)
+                            await human_mouse_move(page)
+                            await human_delay(0.3, 0.8)
+                            await link.first.click()
+                            backlink_clicked = True
+                            click_method = f"anchor:{anchor.strip()}"
+                            log.info(
+                                f"[Task #{task_id}] Click anchor '{anchor}' thành công"
+                            )
+                            break
+                        except Exception as e:
+                            log.warning(
+                                f"[Task #{task_id}] Click anchor '{anchor}' lỗi: {e}"
+                            )
+
+            # Nếu không tìm được theo anchor, tìm theo href chứa target_url
+            if not backlink_clicked:
+                from urllib.parse import urlparse
+
+                target_domain = urlparse(target_url).netloc
+                # Tìm tất cả link chứa target domain
+                links = page.locator(f'a[href*="{target_domain}"]')
+                count = await links.count()
+                if count > 0:
+                    idx = random.randint(0, count - 1)
+                    try:
+                        await links.nth(idx).scroll_into_view_if_needed()
+                        await human_delay(0.5, 1.5)
+                        await human_mouse_move(page)
+                        await human_delay(0.3, 0.8)
+                        await links.nth(idx).click()
+                        backlink_clicked = True
+                        click_method = f"href:{target_domain}"
+                        log.info(
+                            f"[Task #{task_id}] Click link href chứa {target_domain}"
+                        )
+                    except Exception as e:
+                        log.warning(
+                            f"[Task #{task_id}] Click link href lỗi: {e}"
+                        )
+
+            if not backlink_clicked:
+                log.warning(
+                    f"[Task #{task_id}] Không tìm thấy backlink trên {article_url}"
+                )
+                return {
+                    "actual_url_visited": article_url,
+                    "backlink_clicked": False,
+                    "target_url": target_url,
+                    "article_url": article_url,
+                    "pages_visited": 1,
+                    "scroll_depth": round(article_scroll, 2),
+                    "total_time": int(time.time() - start),
+                    "click_method": "not_found",
+                }
+
+            # --- BƯỚC 4: Duyệt trang đích sau khi click ---
+            await human_delay(2.0, 4.0)  # Đợi trang load
+
+            # Kiểm tra đã chuyển trang chưa
+            current_url = page.url
+            log.info(f"[Task #{task_id}] Đang ở trang đích: {current_url}")
+
+            # Hành vi tự nhiên trên trang đích
+            await human_mouse_move(page)
+            await human_scroll(page, scroll_behavior)
+
+            if random.random() < 0.4:
+                await micro_movements(page, random.uniform(2.0, 5.0))
+
+            # Ở trên trang đích
+            target_actual_stay = random.randint(
+                target_stay // 2, target_stay
             )
-            result["total_time"] = int(time.time() - start)
-            return result
+            await human_delay(target_actual_stay, target_actual_stay + 5)
+
+            # Cuộn thêm
+            if random.random() < 0.6:
+                await human_scroll(page, "natural")
+
+            # Tính scroll depth trên trang đích
+            target_scroll = await page.evaluate("""
+                () => {
+                    const st = window.pageYOffset || document.documentElement.scrollTop;
+                    const sh = document.documentElement.scrollHeight;
+                    const ch = document.documentElement.clientHeight;
+                    if (sh <= ch) return 1.0;
+                    return Math.min(1.0, (st + ch) / sh);
+                }
+            """)
+
+            total_time = int(time.time() - start)
+
+            log.info(
+                f"[Task #{task_id}] Backlink hoàn thành: {article_url} → "
+                f"{current_url}, {total_time}s"
+            )
+
+            return {
+                "actual_url_visited": current_url,
+                "backlink_clicked": True,
+                "target_url": target_url,
+                "article_url": article_url,
+                "click_method": click_method,
+                "pages_visited": 2,
+                "article_scroll_depth": round(article_scroll, 2),
+                "scroll_depth": round(target_scroll, 2),
+                "total_time": total_time,
+            }
+
         finally:
             await page.close()
             await context.close()
-
-    async def _create_backlink(
-        self, page, task_id, target_url, anchor_text, site, backlink_type
-    ) -> dict:
-        # Truy cập trang tạo backlink
-        try:
-            await page.goto(site, wait_until="domcontentloaded", timeout=30000)
-        except Exception as e:
-            log.warning(f"[Task #{task_id}] Không mở được {site}: {e}")
-            return {
-                "actual_url_visited": site,
-                "backlink_created": False,
-                "target_url": target_url,
-                "anchor_text": anchor_text,
-                "site": site,
-                "backlink_type": backlink_type,
-                "error": str(e),
-                "pages_visited": 1,
-                "scroll_depth": 0,
-            }
-
-        await human_delay(2.0, 4.0)
-        await human_mouse_move(page)
-        await human_scroll(page, "natural")
-
-        # Tìm form submit (phụ thuộc vào loại site)
-        form_found = False
-        if backlink_type == "directory":
-            form_found = await self._fill_directory_form(
-                page, task_id, target_url, anchor_text
-            )
-        elif backlink_type == "comment":
-            form_found = await self._fill_comment_form(
-                page, task_id, target_url, anchor_text
-            )
-        elif backlink_type == "forum":
-            form_found = await self._fill_forum_form(
-                page, task_id, target_url, anchor_text
-            )
-
-        # Tính scroll depth
-        scroll_depth = await page.evaluate("""
-            () => {
-                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                const scrollHeight = document.documentElement.scrollHeight;
-                const clientHeight = document.documentElement.clientHeight;
-                if (scrollHeight <= clientHeight) return 1.0;
-                return Math.min(1.0, (scrollTop + clientHeight) / scrollHeight);
-            }
-        """)
-
-        log.info(
-            f"[Task #{task_id}] Backlink {'thành công' if form_found else 'thất bại'}: "
-            f"{site}"
-        )
-
-        return {
-            "actual_url_visited": page.url,
-            "backlink_created": form_found,
-            "target_url": target_url,
-            "anchor_text": anchor_text,
-            "site": site,
-            "backlink_type": backlink_type,
-            "pages_visited": 1,
-            "scroll_depth": round(scroll_depth, 2),
-        }
-
-    async def _fill_directory_form(self, page, task_id, url, anchor) -> bool:
-        """Tìm và điền form submit website trên directory."""
-        try:
-            # Tìm input URL
-            url_input = page.locator(
-                'input[name*="url" i], input[name*="link" i], '
-                'input[name*="website" i], input[placeholder*="URL" i], '
-                'input[type="url"]'
-            )
-            if await url_input.count() > 0:
-                await url_input.first.click()
-                await human_delay(0.3, 0.8)
-                await url_input.first.fill(url)
-                await human_delay(0.5, 1.0)
-
-            # Tìm input title/name
-            title_input = page.locator(
-                'input[name*="title" i], input[name*="name" i], '
-                'input[name*="site" i], input[placeholder*="title" i]'
-            )
-            if await title_input.count() > 0:
-                await title_input.first.click()
-                await human_delay(0.3, 0.8)
-                await title_input.first.fill(anchor)
-                await human_delay(0.5, 1.0)
-
-            # Tìm textarea description
-            desc_input = page.locator(
-                'textarea[name*="desc" i], textarea[name*="content" i], textarea'
-            )
-            if await desc_input.count() > 0:
-                await desc_input.first.click()
-                await human_delay(0.3, 0.8)
-                await desc_input.first.fill(
-                    f"{anchor} - Trang web hữu ích với nhiều thông tin chất lượng."
-                )
-                await human_delay(0.5, 1.0)
-
-            # Tìm và click submit
-            submit_btn = page.locator(
-                'button[type="submit"], input[type="submit"], '
-                'button:has-text("Submit"), button:has-text("Add"), '
-                'button:has-text("Gửi")'
-            )
-            if await submit_btn.count() > 0:
-                await human_delay(1.0, 2.0)
-                await submit_btn.first.click()
-                await human_delay(2.0, 4.0)
-                return True
-
-        except Exception as e:
-            log.warning(f"[Task #{task_id}] Lỗi điền form directory: {e}")
-
-        return False
-
-    async def _fill_comment_form(self, page, task_id, url, anchor) -> bool:
-        """Tìm và điền comment form."""
-        try:
-            # Comment textarea
-            comment = page.locator(
-                'textarea[name*="comment" i], textarea#comment, '
-                'textarea[placeholder*="comment" i], textarea'
-            )
-            if await comment.count() == 0:
-                return False
-
-            await comment.first.click()
-            await human_delay(0.5, 1.0)
-            await comment.first.fill(
-                f"Bài viết rất hữu ích! Tham khảo thêm tại {url}"
-            )
-            await human_delay(0.5, 1.0)
-
-            # URL field
-            url_field = page.locator(
-                'input[name*="url" i], input[name*="website" i], input[type="url"]'
-            )
-            if await url_field.count() > 0:
-                await url_field.first.fill(url)
-                await human_delay(0.3, 0.8)
-
-            # Name field
-            name_field = page.locator('input[name*="author" i], input[name*="name" i]')
-            if await name_field.count() > 0:
-                await name_field.first.fill(anchor)
-                await human_delay(0.3, 0.8)
-
-            # Submit
-            submit_btn = page.locator(
-                'button[type="submit"], input[type="submit"], '
-                'button:has-text("Post"), button:has-text("Gửi")'
-            )
-            if await submit_btn.count() > 0:
-                await human_delay(1.0, 2.0)
-                await submit_btn.first.click()
-                await human_delay(2.0, 4.0)
-                return True
-
-        except Exception as e:
-            log.warning(f"[Task #{task_id}] Lỗi điền comment form: {e}")
-
-        return False
-
-    async def _fill_forum_form(self, page, task_id, url, anchor) -> bool:
-        """Tìm và điền forum reply form."""
-        try:
-            # Reply textarea
-            reply = page.locator(
-                'textarea[name*="message" i], textarea[name*="body" i], '
-                'textarea[name*="reply" i], textarea'
-            )
-            if await reply.count() == 0:
-                return False
-
-            await reply.first.click()
-            await human_delay(0.5, 1.0)
-            await reply.first.fill(
-                f"Cảm ơn bạn đã chia sẻ! Mình cũng tìm thấy trang này rất hữu ích: {url}"
-            )
-            await human_delay(0.5, 1.0)
-
-            # Submit
-            submit_btn = page.locator(
-                'button[type="submit"], input[type="submit"], '
-                'button:has-text("Post"), button:has-text("Reply"), '
-                'button:has-text("Gửi")'
-            )
-            if await submit_btn.count() > 0:
-                await human_delay(1.0, 2.0)
-                await submit_btn.first.click()
-                await human_delay(2.0, 4.0)
-                return True
-
-        except Exception as e:
-            log.warning(f"[Task #{task_id}] Lỗi điền forum form: {e}")
-
-        return False
