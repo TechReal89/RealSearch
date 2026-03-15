@@ -31,7 +31,8 @@ class SocialMediaExecutor(BaseJobExecutor):
             f"(xem {watch_time}s)"
         )
 
-        context = await create_context()
+        proxy = self._get_proxy()
+        context = await create_context(proxy=proxy)
         page = await create_page(context)
         start = time.time()
 

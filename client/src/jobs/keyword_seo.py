@@ -84,10 +84,19 @@ class KeywordSEOExecutor(BaseJobExecutor):
             f"(tối đa {max_search_page} trang)"
         )
 
-        proxy = config.get("proxy")
-        context = await create_context(proxy=proxy)
+        proxy_dict = self._get_proxy()
+        context = await create_context(proxy=proxy_dict)
         page = await create_page(context)
         start = time.time()
+
+        # Track proxy object for success/fail recording
+        _proxy_obj = None
+        if config.get("use_proxy_pool") and proxy_dict:
+            from src.browser.proxy_manager import proxy_manager
+            for p in proxy_manager.proxies:
+                if p.host == proxy_dict.get("host") and p.port == proxy_dict.get("port"):
+                    _proxy_obj = p
+                    break
 
         try:
             result = await self._search_and_click(
@@ -103,10 +112,20 @@ class KeywordSEOExecutor(BaseJobExecutor):
                 max_internal=max_internal,
             )
             result["total_time"] = int(time.time() - start)
+
+            # Record proxy success
+            if _proxy_obj:
+                from src.browser.proxy_manager import proxy_manager
+                proxy_manager.record_success(_proxy_obj, int((time.time() - start) * 1000))
+
             return result
 
         except CaptchaDetectedError:
-            # Re-raise with specific error code for dispatcher cooldown
+            # Record proxy failure (CAPTCHA = proxy burned)
+            if _proxy_obj:
+                from src.browser.proxy_manager import proxy_manager
+                proxy_manager.record_failure(_proxy_obj)
+
             raise Exception(
                 "CAPTCHA_DETECTED: Google yêu cầu xác minh CAPTCHA. "
                 "Cần giảm tần suất search hoặc dùng proxy."
@@ -174,8 +193,37 @@ class KeywordSEOExecutor(BaseJobExecutor):
         pre_delay = random.uniform(2.0, 6.0)
         await human_delay(pre_delay, pre_delay + 1.0)
 
+        # Anti-CAPTCHA: 30% chance warm-up visit (browse another site first)
+        # Làm cho session trông tự nhiên hơn, không phải bot chỉ search Google
+        if random.random() < 0.3:
+            warmup_sites = [
+                "https://www.wikipedia.org",
+                "https://news.ycombinator.com",
+                "https://www.bbc.com",
+                "https://vnexpress.net",
+                "https://dantri.com.vn",
+            ]
+            warmup_url = random.choice(warmup_sites)
+            try:
+                log.info(f"[Task #{task_id}] Warm-up visit: {warmup_url}")
+                await page.goto(warmup_url, wait_until="domcontentloaded", timeout=15000)
+                await human_delay(2.0, 5.0)
+                await human_scroll(page, "natural")
+                await human_delay(1.0, 3.0)
+            except Exception:
+                pass  # Không sao nếu warm-up fail
+
+        # Anti-CAPTCHA: Random search engine variation
+        # Xoay vòng giữa các phiên bản Google để phân tán request
+        search_engine_variants = [
+            search_engine,                    # Config gốc (google.com)
+            "google.com.vn",                  # Google Việt Nam
+        ]
+        actual_engine = random.choice(search_engine_variants)
+        log.info(f"[Task #{task_id}] Search engine: {actual_engine}")
+
         # Mở Google
-        google_url = f"https://www.{search_engine}"
+        google_url = f"https://www.{actual_engine}"
         await page.goto(google_url, wait_until="domcontentloaded", timeout=30000)
         await human_delay(2.0, 4.0)
 
@@ -296,8 +344,18 @@ class KeywordSEOExecutor(BaseJobExecutor):
 
             # Không tìm thấy trên trang này, sang trang tiếp
             if page_num < max_search_page:
-                # Delay lâu hơn trước khi chuyển trang (giảm tần suất request)
-                await human_delay(3.0, 7.0)
+                # Anti-CAPTCHA: Delay dài hơn giữa các trang (giảm tần suất request)
+                # Tăng delay theo số trang đã tìm (càng tìm lâu càng chậm)
+                base_delay = 4.0 + page_num * 1.5  # 5.5s, 7s, 8.5s, 10s...
+                await human_delay(base_delay, base_delay + 4.0)
+
+                # Random: 20% xác suất cuộn lên đọc lại kết quả (hành vi người thật)
+                if random.random() < 0.2:
+                    await page.evaluate("window.scrollTo({top: 0, behavior: 'smooth'})")
+                    await human_delay(2.0, 4.0)
+                    await human_scroll(page, "natural")
+                    await human_delay(1.0, 2.0)
+
                 next_clicked = await self._click_next_page(page)
                 if not next_clicked:
                     log.info(f"[Task #{task_id}] Không tìm thấy nút 'Trang tiếp theo'")

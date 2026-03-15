@@ -50,7 +50,8 @@ DEFAULT_CONFIG = {
     "enabled_job_types": ["viewlink", "keyword_seo", "backlink", "social_media"],
     "max_concurrent": 1,
     "auto_start": False,
-    "proxy": None,  # {"host": "", "port": 0, "username": "", "password": ""}
+    "proxy": None,  # Legacy single proxy (giữ tương thích)
+    "use_proxy_pool": False,  # Bật proxy rotation từ pool
     # Schedule
     "schedule_enabled": False,
     "schedule_time": "22:00",

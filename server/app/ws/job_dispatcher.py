@@ -2,6 +2,8 @@
 import asyncio
 import logging
 import random
+import time as _time
+from collections import defaultdict
 from datetime import datetime, timezone
 
 from sqlalchemy import and_, func, select
@@ -16,6 +18,12 @@ from app.ws.manager import ClientConnection, manager
 
 logger = logging.getLogger(__name__)
 
+# --- Anti-CAPTCHA: Rate limiting & interleaving constants ---
+# Max keyword_seo tasks per client per hour (FREE anti-CAPTCHA)
+MAX_KEYWORD_SEO_PER_HOUR = 4
+# After a keyword_seo task, force N viewlink tasks before next keyword_seo
+KEYWORD_INTERLEAVE_COUNT = 2
+
 
 class JobDispatcher:
     """Dispatches jobs to available clients based on priority scoring."""
@@ -27,6 +35,43 @@ class JobDispatcher:
         self._last_idle_notify: float = 0
         # CAPTCHA cooldown: session_id → cooldown_until (timestamp)
         self._captcha_cooldowns: dict[str, float] = {}
+        # Anti-CAPTCHA rate limiting: session_id → list of keyword_seo timestamps
+        self._keyword_history: dict[str, list[float]] = defaultdict(list)
+        # Anti-CAPTCHA interleaving: session_id → non-keyword tasks since last keyword
+        self._interleave_counter: dict[str, int] = defaultdict(lambda: KEYWORD_INTERLEAVE_COUNT)
+
+    def _is_keyword_rate_limited(self, session_id: str) -> bool:
+        """Check if client has exceeded keyword_seo rate limit (per hour).
+
+        FREE anti-CAPTCHA: Limits keyword_seo tasks to MAX_KEYWORD_SEO_PER_HOUR
+        per client to reduce Google CAPTCHA triggers.
+        """
+        now = _time.time()
+        one_hour_ago = now - 3600
+
+        # Clean old entries
+        history = self._keyword_history[session_id]
+        self._keyword_history[session_id] = [t for t in history if t > one_hour_ago]
+
+        return len(self._keyword_history[session_id]) >= MAX_KEYWORD_SEO_PER_HOUR
+
+    def _should_interleave(self, session_id: str) -> bool:
+        """Check if client needs to do non-keyword tasks before next keyword_seo.
+
+        FREE anti-CAPTCHA: After each keyword_seo task, force KEYWORD_INTERLEAVE_COUNT
+        viewlink/other tasks before allowing another keyword_seo.
+        This breaks the pattern of consecutive Google searches.
+        """
+        return self._interleave_counter[session_id] < KEYWORD_INTERLEAVE_COUNT
+
+    def _record_keyword_task(self, session_id: str):
+        """Record that a keyword_seo task was assigned to this client."""
+        self._keyword_history[session_id].append(_time.time())
+        self._interleave_counter[session_id] = 0  # Reset interleave counter
+
+    def _record_non_keyword_task(self, session_id: str):
+        """Record that a non-keyword task was assigned (for interleaving)."""
+        self._interleave_counter[session_id] = self._interleave_counter.get(session_id, 0) + 1
 
     def _calculate_priority_score(self, job: Job, tier_priority: int = 1) -> float:
         """Calculate priority score for job ranking.
@@ -141,15 +186,22 @@ class JobDispatcher:
                     if job.user_id == client.user_id:
                         continue
 
-                    # CAPTCHA COOLDOWN: skip keyword_seo for clients in cooldown
-                    import time as _time
+                    # ANTI-CAPTCHA: Multiple layers of protection for keyword_seo
                     if job.job_type.value == "keyword_seo":
+                        # Layer 1: CAPTCHA cooldown (triggered after actual CAPTCHA)
                         cooldown_until = self._captcha_cooldowns.get(client.session_id, 0)
                         if _time.time() < cooldown_until:
                             continue
-                        # Clean up expired cooldowns
                         elif client.session_id in self._captcha_cooldowns:
                             del self._captcha_cooldowns[client.session_id]
+
+                        # Layer 2: Rate limiting (max N keyword tasks/hour/client)
+                        if self._is_keyword_rate_limited(client.session_id):
+                            continue
+
+                        # Layer 3: Interleaving (force viewlink between keywords)
+                        if self._should_interleave(client.session_id):
+                            continue
 
                     # Check if job owner has enough credits to pay for this task
                     job_owner = await db.get(User, job.user_id)
@@ -194,6 +246,13 @@ class JobDispatcher:
                         assigned_count += 1
                         assigned_this_client += 1
                         assigned_job_ids.add(job.id)
+
+                        # Anti-CAPTCHA: Track keyword_seo rate & interleaving
+                        if job.job_type.value == "keyword_seo":
+                            self._record_keyword_task(client.session_id)
+                        else:
+                            self._record_non_keyword_task(client.session_id)
+
                         logger.info(
                             f"Task #{task.id} (job #{job.id} {job.job_type.value}) "
                             f"→ session {client.session_id[:8]} "
@@ -425,7 +484,6 @@ class JobDispatcher:
         self, session_id: str, task_id: int, error_code: str, error_message: str
     ):
         """Handle task failure from client."""
-        import time as _time
         client = manager.get_client(session_id)
 
         # Detect CAPTCHA error → apply cooldown for keyword_seo tasks

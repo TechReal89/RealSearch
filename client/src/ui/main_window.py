@@ -4,6 +4,7 @@ import threading
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 
+from src.browser.proxy_manager import proxy_manager, ProxyInfo
 from src.config import config, get_version, get_icon_path
 from src.jobs.viewlink import ViewLinkExecutor
 from src.jobs.keyword_seo import KeywordSEOExecutor
@@ -300,6 +301,9 @@ class MainWindow:
         # === Schedule & Autostart Settings ===
         self._build_schedule_panel()
 
+        # === Proxy Management ===
+        self._build_proxy_panel()
+
         # === Ornament line ===
         ornament = tk.Canvas(self.root, width=2000, height=1, bg=COLORS["bg"],
                              highlightthickness=0)
@@ -472,6 +476,207 @@ class MainWindow:
         )
         self._sched_status.pack(side="right")
         self._update_schedule_status()
+
+    def _build_proxy_panel(self):
+        """Panel quản lý proxy pool."""
+        panel = tk.Frame(self.root, bg=COLORS["bg_card"], padx=12, pady=8,
+                         highlightbackground=COLORS["border_gold"], highlightthickness=1)
+        panel.pack(fill="x", padx=15, pady=(5, 0))
+
+        # Header row
+        header_row = tk.Frame(panel, bg=COLORS["bg_card"])
+        header_row.pack(fill="x")
+
+        tk.Label(
+            header_row, text="🌐  PROXY",
+            font=("Segoe UI", 9, "bold"),
+            bg=COLORS["bg_card"], fg=COLORS["gold"]
+        ).pack(side="left")
+
+        # Proxy pool toggle
+        self._proxy_pool_var = tk.BooleanVar(value=config.get("use_proxy_pool", False))
+        ttk.Checkbutton(
+            header_row, text="Bật xoay proxy",
+            variable=self._proxy_pool_var,
+            command=self._on_proxy_pool_toggle,
+            style="TCheckbutton"
+        ).pack(side="left", padx=(15, 0))
+
+        # Status label
+        self._proxy_status = tk.Label(
+            header_row, text=proxy_manager.get_summary(),
+            font=("Segoe UI", 8),
+            bg=COLORS["bg_card"], fg=COLORS["text_dim"]
+        )
+        self._proxy_status.pack(side="right")
+
+        # Proxy content (collapsible)
+        self._proxy_content = tk.Frame(panel, bg=COLORS["bg_card"])
+        self._proxy_content.pack(fill="x", pady=(5, 0))
+
+        # Proxy list (compact)
+        list_frame = tk.Frame(self._proxy_content, bg=COLORS["bg_input"],
+                              highlightbackground=COLORS["border"], highlightthickness=1)
+        list_frame.pack(fill="x")
+
+        self._proxy_listbox = tk.Listbox(
+            list_frame, height=3,
+            font=("Consolas", 8),
+            bg=COLORS["bg_input"], fg=COLORS["text"],
+            selectbackground=COLORS["gold_dark"],
+            selectforeground=COLORS["text"],
+            borderwidth=0,
+            highlightthickness=0,
+        )
+        self._proxy_listbox.pack(fill="x", padx=2, pady=2)
+        self._refresh_proxy_list()
+
+        # Buttons row
+        btn_row = tk.Frame(self._proxy_content, bg=COLORS["bg_card"])
+        btn_row.pack(fill="x", pady=(5, 0))
+
+        ttk.Button(btn_row, text="+ Thêm", command=self._proxy_add_dialog,
+                   style="Small.TButton", width=8).pack(side="left", padx=(0, 3))
+        ttk.Button(btn_row, text="Nhập file", command=self._proxy_import,
+                   style="Small.TButton", width=8).pack(side="left", padx=(0, 3))
+        ttk.Button(btn_row, text="Xóa", command=self._proxy_remove,
+                   style="Small.TButton", width=6).pack(side="left", padx=(0, 3))
+        ttk.Button(btn_row, text="Test", command=self._proxy_test_selected,
+                   style="Small.TButton", width=6).pack(side="left", padx=(0, 3))
+        ttk.Button(btn_row, text="Test All", command=self._proxy_test_all,
+                   style="Small.TButton", width=8).pack(side="left")
+        ttk.Button(btn_row, text="Xóa hết", command=self._proxy_clear,
+                   style="Small.TButton", width=8).pack(side="right")
+
+    def _refresh_proxy_list(self):
+        """Cập nhật danh sách proxy trong listbox."""
+        self._proxy_listbox.delete(0, "end")
+        for i, p in enumerate(proxy_manager.proxies):
+            status = "✅" if p.enabled else "❌"
+            rate = f"{p.success_rate:.0f}%" if (p.success + p.fail) > 0 else "--"
+            text = f"{status} {p.host}:{p.port} [{p.protocol}] | {rate} | {p.avg_ms}ms"
+            if p.username:
+                text = f"{status} {p.username}@{p.host}:{p.port} [{p.protocol}] | {rate} | {p.avg_ms}ms"
+            self._proxy_listbox.insert("end", text)
+        self._proxy_status.config(text=proxy_manager.get_summary())
+
+    def _on_proxy_pool_toggle(self):
+        """Bật/tắt proxy pool rotation."""
+        enabled = self._proxy_pool_var.get()
+        config.set("use_proxy_pool", enabled)
+        state = "BẬT" if enabled else "TẮT"
+        log.info(f"Proxy pool rotation: {state}")
+        if enabled and proxy_manager.count == 0:
+            log.warning("Chưa có proxy nào! Thêm proxy trước khi bật.")
+
+    def _proxy_add_dialog(self):
+        """Dialog thêm proxy."""
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Thêm Proxy")
+        dialog.geometry("450x200")
+        dialog.configure(bg=COLORS["bg"])
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        tk.Label(
+            dialog, text="Nhập proxy (mỗi dòng 1 proxy):",
+            font=("Segoe UI", 9),
+            bg=COLORS["bg"], fg=COLORS["text"]
+        ).pack(padx=10, pady=(10, 5), anchor="w")
+
+        tk.Label(
+            dialog, text="Format: host:port hoặc host:port:user:pass hoặc protocol://user:pass@host:port",
+            font=("Segoe UI", 8),
+            bg=COLORS["bg"], fg=COLORS["text_dim"]
+        ).pack(padx=10, anchor="w")
+
+        text_input = tk.Text(
+            dialog, height=5, font=("Consolas", 9),
+            bg=COLORS["bg_input"], fg=COLORS["text"],
+            insertbackground=COLORS["gold"],
+            borderwidth=1, highlightbackground=COLORS["border"]
+        )
+        text_input.pack(fill="x", padx=10, pady=5)
+
+        def _do_add():
+            lines = text_input.get("1.0", "end").strip().split("\n")
+            added = proxy_manager.add_bulk(lines)
+            log.info(f"Đã thêm {added} proxy")
+            self._refresh_proxy_list()
+            dialog.destroy()
+
+        ttk.Button(dialog, text="Thêm", command=_do_add,
+                   style="Gold.TButton").pack(pady=5)
+
+    def _proxy_import(self):
+        """Import proxy từ file txt."""
+        from tkinter import filedialog
+        filepath = filedialog.askopenfilename(
+            title="Chọn file proxy",
+            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+            parent=self.root,
+        )
+        if not filepath:
+            return
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                lines = f.readlines()
+            added = proxy_manager.add_bulk(lines)
+            log.info(f"Import {added} proxy từ {filepath}")
+            self._refresh_proxy_list()
+        except Exception as e:
+            log.error(f"Lỗi import proxy: {e}")
+
+    def _proxy_remove(self):
+        """Xóa proxy đang chọn."""
+        sel = self._proxy_listbox.curselection()
+        if not sel:
+            return
+        proxy_manager.remove(sel[0])
+        self._refresh_proxy_list()
+
+    def _proxy_clear(self):
+        """Xóa tất cả proxy."""
+        proxy_manager.clear()
+        self._refresh_proxy_list()
+        log.info("Đã xóa tất cả proxy")
+
+    def _proxy_test_selected(self):
+        """Test proxy đang chọn."""
+        sel = self._proxy_listbox.curselection()
+        if not sel:
+            return
+        proxy = proxy_manager.proxies[sel[0]]
+        log.info(f"Đang test proxy {proxy}...")
+
+        def _run_test():
+            import asyncio
+            loop = asyncio.new_event_loop()
+            try:
+                ok, ms = loop.run_until_complete(proxy_manager.check_proxy(proxy))
+                self.root.after(0, self._refresh_proxy_list)
+            finally:
+                loop.close()
+
+        threading.Thread(target=_run_test, daemon=True).start()
+
+    def _proxy_test_all(self):
+        """Test tất cả proxy."""
+        if proxy_manager.count == 0:
+            return
+        log.info(f"Đang test {proxy_manager.count} proxy...")
+
+        def _run_all():
+            import asyncio
+            loop = asyncio.new_event_loop()
+            try:
+                results = loop.run_until_complete(proxy_manager.check_all())
+                log.info(f"Test xong: {results['ok']} OK, {results['fail']} FAIL")
+                self.root.after(0, self._refresh_proxy_list)
+            finally:
+                loop.close()
+
+        threading.Thread(target=_run_all, daemon=True).start()
 
     def _update_schedule_status(self):
         """Cập nhật label hiển thị trạng thái hẹn giờ."""

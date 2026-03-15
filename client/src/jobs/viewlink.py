@@ -32,8 +32,8 @@ class ViewLinkExecutor(BaseJobExecutor):
 
         log.info(f"[Task #{task_id}] Mở {target_url} (ở lại {stay_time}s)")
 
-        # Proxy from client config
-        proxy = config.get("proxy")
+        # Proxy: pool rotation hoặc single proxy
+        proxy = self._get_proxy()
         context = await create_context(proxy=proxy)
         page = await create_page(context)
         pages_visited = 1
