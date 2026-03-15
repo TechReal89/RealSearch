@@ -14,6 +14,11 @@ from src.jobs.base import BaseJobExecutor
 from src.utils.logger import log
 
 
+class CaptchaDetectedError(Exception):
+    """Google CAPTCHA/sorry page detected - need to cooldown."""
+    pass
+
+
 async def human_type(page, selector: str, text: str):
     """Gõ từng ký tự như người thật, hỗ trợ tiếng Việt Unicode."""
     element = page.locator(selector)
@@ -100,18 +105,83 @@ class KeywordSEOExecutor(BaseJobExecutor):
             result["total_time"] = int(time.time() - start)
             return result
 
+        except CaptchaDetectedError:
+            # Re-raise with specific error code for dispatcher cooldown
+            raise Exception(
+                "CAPTCHA_DETECTED: Google yêu cầu xác minh CAPTCHA. "
+                "Cần giảm tần suất search hoặc dùng proxy."
+            )
+
         finally:
             await page.close()
             await context.close()
+
+    async def _check_captcha(self, page, task_id: int) -> bool:
+        """Kiểm tra xem Google có hiện trang CAPTCHA/sorry không.
+
+        Returns True nếu phát hiện CAPTCHA → cần abort task.
+        """
+        current_url = page.url
+
+        # Check URL patterns
+        captcha_url_patterns = [
+            "google.com/sorry",
+            "/sorry/index",
+            "ipv4.google.com/sorry",
+            "recaptcha",
+        ]
+        if any(pattern in current_url for pattern in captcha_url_patterns):
+            log.warning(f"[Task #{task_id}] CAPTCHA detected (URL): {current_url[:80]}")
+            return True
+
+        # Check page content for reCAPTCHA and sorry page text
+        try:
+            captcha_detected = await page.evaluate("""
+                () => {
+                    // Check for reCAPTCHA iframe or element
+                    if (document.querySelector('iframe[src*="recaptcha"]')) return 'recaptcha_iframe';
+                    if (document.querySelector('.g-recaptcha, #recaptcha')) return 'recaptcha_element';
+
+                    // Check for "sorry" page text
+                    const body = (document.body?.innerText || '').toLowerCase();
+                    const patterns = [
+                        'unusual traffic',
+                        'lưu lượng truy cập bất thường',
+                        'không phải là rô-bốt',
+                        'not a robot',
+                        'automated queries',
+                        'truy cập bất thường từ mạng',
+                    ];
+                    for (const p of patterns) {
+                        if (body.includes(p.toLowerCase())) return 'sorry_text';
+                    }
+                    return null;
+                }
+            """)
+            if captcha_detected:
+                log.warning(f"[Task #{task_id}] CAPTCHA detected ({captcha_detected})")
+                return True
+        except Exception:
+            pass
+
+        return False
 
     async def _search_and_click(
         self, page, task_id, keyword, target_domain, search_engine,
         max_search_page, min_time, max_time, do_click_internal, max_internal
     ) -> dict:
+        # Random delay trước khi search (giảm pattern detection)
+        pre_delay = random.uniform(2.0, 6.0)
+        await human_delay(pre_delay, pre_delay + 1.0)
+
         # Mở Google
         google_url = f"https://www.{search_engine}"
         await page.goto(google_url, wait_until="domcontentloaded", timeout=30000)
-        await human_delay(1.0, 3.0)
+        await human_delay(2.0, 4.0)
+
+        # Kiểm tra CAPTCHA ngay khi load Google
+        if await self._check_captcha(page, task_id):
+            raise CaptchaDetectedError()
 
         # Xử lý consent popup (Google EU)
         try:
@@ -122,6 +192,14 @@ class KeywordSEOExecutor(BaseJobExecutor):
         except Exception:
             pass
 
+        # Dismiss tất cả popup trước khi gõ
+        await self._dismiss_google_popups(page, task_id)
+
+        # Đôi khi di chuột random trước khi gõ (giống người thật)
+        if random.random() < 0.4:
+            await human_mouse_move(page)
+            await human_delay(0.5, 1.5)
+
         # Gõ keyword vào ô tìm kiếm
         search_selector = 'textarea[name="q"], input[name="q"]'
         await human_type(page, search_selector, keyword)
@@ -130,6 +208,10 @@ class KeywordSEOExecutor(BaseJobExecutor):
         await page.keyboard.press("Enter")
         await page.wait_for_load_state("domcontentloaded", timeout=15000)
         await human_delay(2.0, 4.0)
+
+        # Kiểm tra CAPTCHA sau khi search
+        if await self._check_captcha(page, task_id):
+            raise CaptchaDetectedError()
 
         # Dismiss tất cả popup Google (vị trí, translate, notification...)
         await self._dismiss_google_popups(page, task_id)
@@ -144,6 +226,10 @@ class KeywordSEOExecutor(BaseJobExecutor):
         for page_num in range(1, max_search_page + 1):
             pages_scrolled = page_num
             log.info(f"[Task #{task_id}] Đang tìm trên trang {page_num}...")
+
+            # Kiểm tra CAPTCHA trên mỗi trang kết quả
+            if await self._check_captcha(page, task_id):
+                raise CaptchaDetectedError()
 
             # Dismiss popup nếu xuất hiện lại
             await self._dismiss_google_popups(page, task_id)
@@ -210,6 +296,8 @@ class KeywordSEOExecutor(BaseJobExecutor):
 
             # Không tìm thấy trên trang này, sang trang tiếp
             if page_num < max_search_page:
+                # Delay lâu hơn trước khi chuyển trang (giảm tần suất request)
+                await human_delay(3.0, 7.0)
                 next_clicked = await self._click_next_page(page)
                 if not next_clicked:
                     log.info(f"[Task #{task_id}] Không tìm thấy nút 'Trang tiếp theo'")

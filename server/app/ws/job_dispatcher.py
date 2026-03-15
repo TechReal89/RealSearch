@@ -1,6 +1,7 @@
 """Job Dispatcher - distributes tasks to connected clients based on priority."""
 import asyncio
 import logging
+import random
 from datetime import datetime, timezone
 
 from sqlalchemy import and_, func, select
@@ -24,6 +25,8 @@ class JobDispatcher:
         self._dispatch_interval = 5  # seconds
         self._idle_notify_interval = 60  # notify idle clients every 60s
         self._last_idle_notify: float = 0
+        # CAPTCHA cooldown: session_id → cooldown_until (timestamp)
+        self._captcha_cooldowns: dict[str, float] = {}
 
     def _calculate_priority_score(self, job: Job, tier_priority: int = 1) -> float:
         """Calculate priority score for job ranking.
@@ -137,6 +140,16 @@ class JobDispatcher:
                     # SELF-VIEW PREVENTION: Don't assign own job to owner's client
                     if job.user_id == client.user_id:
                         continue
+
+                    # CAPTCHA COOLDOWN: skip keyword_seo for clients in cooldown
+                    import time as _time
+                    if job.job_type.value == "keyword_seo":
+                        cooldown_until = self._captcha_cooldowns.get(client.session_id, 0)
+                        if _time.time() < cooldown_until:
+                            continue
+                        # Clean up expired cooldowns
+                        elif client.session_id in self._captcha_cooldowns:
+                            del self._captcha_cooldowns[client.session_id]
 
                     # Check if job owner has enough credits to pay for this task
                     job_owner = await db.get(User, job.user_id)
@@ -412,22 +425,52 @@ class JobDispatcher:
         self, session_id: str, task_id: int, error_code: str, error_message: str
     ):
         """Handle task failure from client."""
+        import time as _time
         client = manager.get_client(session_id)
+
+        # Detect CAPTCHA error → apply cooldown for keyword_seo tasks
+        is_captcha = "CAPTCHA_DETECTED" in (error_message or "")
+        if is_captcha:
+            cooldown_minutes = random.randint(10, 20)
+            self._captcha_cooldowns[session_id] = _time.time() + cooldown_minutes * 60
+            logger.warning(
+                f"CAPTCHA detected for session {session_id[:8]} - "
+                f"keyword_seo cooldown {cooldown_minutes} minutes"
+            )
+            # Notify client
+            if client:
+                try:
+                    await client.send({
+                        "type": "broadcast",
+                        "data": {
+                            "message": f"⚠️ Google CAPTCHA detected! "
+                                       f"Tạm dừng keyword SEO {cooldown_minutes} phút. "
+                                       f"ViewLink vẫn hoạt động bình thường.",
+                            "level": "warning",
+                        },
+                    })
+                except Exception:
+                    pass
 
         async with async_session() as db:
             task = await db.get(Task, task_id)
             if not task or task.client_session_id != session_id:
                 return
 
-            task.retry_count += 1
-            if task.retry_count >= task.max_retries:
+            if is_captcha:
+                # CAPTCHA: don't retry, mark as failed immediately
                 task.status = TaskStatus.FAILED
                 task.error_message = f"{error_code}: {error_message}"
             else:
-                # Reset for retry
-                task.status = TaskStatus.PENDING
-                task.assigned_to = None
-                task.client_session_id = None
+                task.retry_count += 1
+                if task.retry_count >= task.max_retries:
+                    task.status = TaskStatus.FAILED
+                    task.error_message = f"{error_code}: {error_message}"
+                else:
+                    # Reset for retry on different client
+                    task.status = TaskStatus.PENDING
+                    task.assigned_to = None
+                    task.client_session_id = None
 
             task.completed_at = datetime.now(timezone.utc)
             await db.commit()

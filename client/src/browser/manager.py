@@ -244,6 +244,9 @@ async def create_context(proxy: dict | None = None) -> BrowserContext:
         "locale": "vi-VN",
         "timezone_id": "Asia/Ho_Chi_Minh",
         "java_script_enabled": True,
+        # Grant geolocation with fake coords to prevent Google location popup
+        "geolocation": {"latitude": 21.0285, "longitude": 105.8542},  # Hanoi
+        "permissions": ["geolocation"],
     }
 
     # Proxy support
