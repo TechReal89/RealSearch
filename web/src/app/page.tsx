@@ -285,13 +285,13 @@ function HomeContent() {
                 {
                   icon: Fingerprint,
                   title: "Browser Fingerprint",
-                  desc: "Mỗi phiên truy cập có fingerprint riêng: User-Agent, viewport, timezone, WebGL, GPU &mdash; giống hệt trình duyệt thật",
+                  desc: "Mỗi phiên truy cập có fingerprint riêng: User-Agent (Chrome 130-135), viewport (8+ kích thước), timezone, WebGL GPU, hardware &mdash; giống hệt trình duyệt thật",
                   color: "text-[#d4a84b]", bg: "gold-gradient", iconColor: "text-[#09090d]",
                 },
                 {
                   icon: MousePointerClick,
                   title: "Chuột Bezier Curve",
-                  desc: "Di chuột theo đường cong tự nhiên, tốc độ thay đổi, overshoot ngẫu nhiên &mdash; không có bot nào làm được",
+                  desc: "Di chuột theo đường cong Bezier bậc 2, tốc độ thay đổi tự nhiên, 15% overshoot ngẫu nhiên, micro-movements khi đọc &mdash; không bot nào làm được",
                   color: "text-emerald-400", bg: "bg-emerald-500/10", iconColor: "text-emerald-400",
                 },
                 {
@@ -314,8 +314,8 @@ function HomeContent() {
                 },
                 {
                   icon: Shield,
-                  title: "Anti-Detection",
-                  desc: "Vượt qua mọi hệ thống phát hiện bot: Cloudflare, DataDome, PerimeterX. Stealth scripts che giấu hoàn toàn",
+                  title: "Anti-Detection Pro",
+                  desc: "Vượt mọi hệ thống phát hiện bot. Vị trí GPS ngẫu nhiên từ 20 thành phố VN, Connection API giả lập, Chrome runtime đầy đủ &mdash; 100% ẩn danh",
                   color: "text-orange-400", bg: "bg-orange-500/10", iconColor: "text-orange-400",
                 },
               ].map((item, i) => (
@@ -366,9 +366,9 @@ function HomeContent() {
                 },
                 {
                   icon: Link2,
-                  title: "Auto Backlink",
-                  desc: "Tự động đăng ký directory, forum, comment với anchor text tùy chỉnh. Xây dựng hồ sơ backlink tự nhiên, tăng Domain Authority.",
-                  tags: ["Directory Submit", "Forum Post", "DA Boost"],
+                  title: "Backlink Traffic",
+                  desc: "Tự động truy cập bài viết chứa backlink, đọc nội dung tự nhiên, tìm anchor text và click vào link trỏ về trang đích. Tăng giá trị backlink, cải thiện Domain Authority.",
+                  tags: ["Anchor Click", "Natural Reading", "DA Boost"],
                   color: "text-purple-400", bg: "bg-purple-500/5", border: "border-purple-500/10",
                 },
               ].map((feat, i) => (
