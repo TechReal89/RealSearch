@@ -6,7 +6,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from app.dependencies import get_admin_user
 
-router = APIRouter(prefix="/api/v1/admin/upload", tags=["Admin Upload"])
+router = APIRouter(prefix="/admin/upload", tags=["Admin Upload"])
 
 UPLOAD_DIR = Path("/root/RealSearch/server/uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.models.article import Article
 
-router = APIRouter(prefix="/api/v1/articles", tags=["Articles"])
+router = APIRouter(prefix="/articles", tags=["Articles"])
 
 
 @router.get("")

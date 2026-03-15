@@ -11,7 +11,7 @@ from app.database import get_db
 from app.dependencies import get_admin_user
 from app.models.article import Article
 
-router = APIRouter(prefix="/api/v1/admin/articles", tags=["Admin Articles"])
+router = APIRouter(prefix="/admin/articles", tags=["Admin Articles"])
 
 
 class ArticleCreate(BaseModel):
