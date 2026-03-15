@@ -103,6 +103,13 @@ export const articleApi = {
   get: (slug: string) => fetchApi(`/articles/${slug}`),
 };
 
+export const feedbackApi = {
+  submit: (data: { type: string; title: string; description: string; screenshot_url?: string; severity?: string }) =>
+    fetchApi("/feedback", { method: "POST", body: JSON.stringify(data) }),
+  list: (page = 1) => fetchApi(`/feedback?page=${page}`),
+  hallOfFame: () => fetchApi("/feedback/hall-of-fame"),
+};
+
 export const paymentApi = {
   channels: () => fetchApi("/payments/channels"),
   create: (data: Record<string, unknown>) =>

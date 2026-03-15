@@ -11,3 +11,4 @@ from app.models.proxy import Proxy  # noqa: F401
 from app.models.setting import SystemSetting  # noqa: F401
 from app.models.license import Product, LicensePlan, License, LicenseDevice, LicenseLog  # noqa: F401
 from app.models.article import Article  # noqa: F401
+from app.models.feedback import Feedback  # noqa: F401

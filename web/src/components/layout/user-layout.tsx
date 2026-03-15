@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard, Briefcase, Coins, Wallet, LogOut, Crown, Menu, X,
   Shield, Gem, Award, Star, User, Gift, Download, ChevronDown, BookOpen, Newspaper,
+  MessageSquarePlus, Trophy,
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { Logo } from "@/components/ui/logo";
@@ -58,6 +59,8 @@ const userMenuItems = [
   { href: "/profile", label: "Hồ sơ", icon: User },
   { href: "/referral", label: "Giới thiệu bạn bè", icon: Gift },
   { href: "/download", label: "Tải app", icon: Download },
+  { href: "/feedback", label: "Góp ý & Báo lỗi", icon: MessageSquarePlus },
+  { href: "/hall-of-fame", label: "Bảng vinh danh", icon: Trophy },
   { href: "/guide", label: "Hướng dẫn sử dụng", icon: BookOpen },
   { href: "/news", label: "Tin tức", icon: Newspaper },
 ];

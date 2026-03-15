@@ -571,6 +571,13 @@ export const adminApi = {
     return res.json() as Promise<{ url: string; filename: string }>;
   },
 
+  // Feedback
+  listFeedbacks: (params = "") => api<{ feedbacks: unknown[]; total: number }>(`/api/v1/admin/feedback?${params}`, { token: t() }),
+  getFeedback: (id: number) => api<unknown>(`/api/v1/admin/feedback/${id}`, { token: t() }),
+  reviewFeedback: (id: number, data: { status: string; admin_note?: string; credit_reward?: number }) =>
+    api(`/api/v1/admin/feedback/${id}`, { token: t(), method: "PUT", body: JSON.stringify(data) }),
+  feedbackStats: () => api<{ total: number; pending: number; approved: number; rejected: number; total_rewards: number }>("/api/v1/admin/feedback/stats", { token: t() }),
+
   // Analytics
   analyticsTask: (days = 30) => api<Record<string, unknown>>(`/api/v1/admin/analytics/tasks?days=${days}`, { token: t() }),
   analyticsCredits: (days = 30) => api<Record<string, unknown>>(`/api/v1/admin/analytics/credits?days=${days}`, { token: t() }),

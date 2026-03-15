@@ -20,7 +20,9 @@ from app.api.v1.admin.security import router as admin_security_router
 from app.api.v1.licenses import router as license_router
 from app.api.v1.admin.licenses import router as admin_license_router
 from app.api.v1.articles import router as articles_router
+from app.api.v1.feedback import router as feedback_router
 from app.api.v1.admin.articles import router as admin_articles_router
+from app.api.v1.admin.feedback import router as admin_feedback_router
 from app.api.v1.admin.upload import router as admin_upload_router
 
 api_router = APIRouter(prefix="/api/v1")
@@ -33,6 +35,7 @@ api_router.include_router(credits_router)
 api_router.include_router(payments_router)
 api_router.include_router(license_router)
 api_router.include_router(articles_router)
+api_router.include_router(feedback_router)
 
 # Admin routes
 api_router.include_router(admin_dashboard_router)
@@ -49,4 +52,5 @@ api_router.include_router(admin_analytics_router)
 api_router.include_router(admin_security_router)
 api_router.include_router(admin_license_router)
 api_router.include_router(admin_articles_router)
+api_router.include_router(admin_feedback_router)
 api_router.include_router(admin_upload_router)
