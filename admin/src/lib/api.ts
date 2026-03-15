@@ -390,6 +390,26 @@ export interface LicenseStats {
   products_count: number;
 }
 
+export interface Article {
+  id: number;
+  title: string;
+  slug: string;
+  content: string;
+  excerpt: string | null;
+  thumbnail: string | null;
+  category: string;
+  status: string;
+  author_id: number | null;
+  sort_order: number;
+  view_count: number;
+  meta_title: string | null;
+  meta_description: string | null;
+  is_featured: boolean;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // --- API calls ---
 export const authApi = {
   login: (username: string, password: string) =>
@@ -529,6 +549,27 @@ export const adminApi = {
     api(`/api/v1/admin/license/devices/${deviceId}`, { token: t(), method: "DELETE" }),
   licenseStats: (productId?: number) =>
     api<LicenseStats>(`/api/v1/admin/license/stats${productId ? `?product_id=${productId}` : ""}`, { token: t() }),
+
+  // Articles
+  listArticles: (params = "") => api<{ articles: Article[]; total: number }>(`/api/v1/admin/articles?${params}`, { token: t() }),
+  createArticle: (data: Partial<Article>) =>
+    api<Article>("/api/v1/admin/articles", { token: t(), method: "POST", body: JSON.stringify(data) }),
+  getArticle: (id: number) => api<Article>(`/api/v1/admin/articles/${id}`, { token: t() }),
+  updateArticle: (id: number, data: Partial<Article>) =>
+    api<Article>(`/api/v1/admin/articles/${id}`, { token: t(), method: "PUT", body: JSON.stringify(data) }),
+  deleteArticle: (id: number) =>
+    api(`/api/v1/admin/articles/${id}`, { token: t(), method: "DELETE" }),
+  uploadImage: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${API_URL}/api/v1/admin/upload`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${t()}` },
+      body: formData,
+    });
+    if (!res.ok) throw new Error("Upload failed");
+    return res.json() as Promise<{ url: string; filename: string }>;
+  },
 
   // Analytics
   analyticsTask: (days = 30) => api<Record<string, unknown>>(`/api/v1/admin/analytics/tasks?days=${days}`, { token: t() }),

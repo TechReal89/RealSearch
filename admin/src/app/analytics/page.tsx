@@ -97,7 +97,7 @@ export default function AnalyticsPage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-2xl font-bold">Thống kê & Phân tích</h2>
-          <Select value={days} onValueChange={setDays}>
+          <Select value={days} onValueChange={(v) => v && setDays(v)}>
             <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="7">7 ngày</SelectItem>

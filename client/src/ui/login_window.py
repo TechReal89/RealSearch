@@ -87,7 +87,7 @@ class LoginWindow:
         self._silent_success = None
         self.root = tk.Tk()
         self.root.title(f"RealSearch v{get_version()}")
-        self.root.geometry("440x500")
+        self.root.geometry("440x560")
         self.root.resizable(False, False)
         self.root.configure(bg=COLORS["bg"])
 
@@ -150,9 +150,19 @@ class LoginWindow:
         style.map("TCheckbutton",
                    background=[("active", COLORS["bg_card"])])
 
+        style.configure("Ghost.TButton",
+                        background=COLORS["bg_card"],
+                        foreground=COLORS["text_muted"],
+                        borderwidth=1,
+                        font=("Segoe UI", 9),
+                        padding=(10, 8))
+        style.map("Ghost.TButton",
+                   background=[("active", COLORS["border"])],
+                   foreground=[("active", COLORS["text"])])
+
     def _center_window(self):
         self.root.update_idletasks()
-        w, h = 440, 500
+        w, h = 440, 560
         x = (self.root.winfo_screenwidth() - w) // 2
         y = (self.root.winfo_screenheight() - h) // 2
         self.root.geometry(f"{w}x{h}+{x}+{y}")
@@ -232,12 +242,29 @@ class LoginWindow:
         )
         self.btn_login.pack(fill="x")
 
-        # Footer
+        # Register button
+        ttk.Button(
+            card, text="ĐĂNG KÝ TÀI KHOẢN",
+            command=self._open_register,
+            style="Ghost.TButton"
+        ).pack(fill="x", pady=(8, 0))
+
+        # Footer links
+        footer_frame = tk.Frame(main, bg=COLORS["bg"])
+        footer_frame.pack(pady=(12, 0))
         tk.Label(
-            main, text="🔒  Bảo mật & An toàn",
+            footer_frame, text="🔒  Bảo mật & An toàn",
             font=("Segoe UI", 8),
             bg=COLORS["bg"], fg=COLORS["text_dim"]
-        ).pack(pady=(12, 0))
+        ).pack()
+        # Go to home link
+        home_link = tk.Label(
+            footer_frame, text="🌐  Truy cập website →",
+            font=("Segoe UI", 8, "underline"),
+            bg=COLORS["bg"], fg=COLORS["gold"], cursor="hand2"
+        )
+        home_link.pack(pady=(4, 0))
+        home_link.bind("<Button-1>", lambda e: self._open_home())
 
         # Bind Enter key
         self.root.bind("<Return>", lambda e: self._do_login())
@@ -285,6 +312,16 @@ class LoginWindow:
         user = await api.get_me()
         self.root.destroy()
         self.on_login_success(user)
+
+    def _open_register(self):
+        """Mở trang đăng ký trên trình duyệt."""
+        import webbrowser
+        webbrowser.open("https://seo.toolsx.vn")
+
+    def _open_home(self):
+        """Mở trang chủ website."""
+        import webbrowser
+        webbrowser.open("https://seo.toolsx.vn")
 
     def run(self):
         # Nếu đã silent login thành công -> skip UI

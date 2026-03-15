@@ -19,7 +19,7 @@ class PromotionCreate(BaseModel):
     name: str = Field(min_length=1, max_length=255)
     code: str | None = Field(None, max_length=50)
     type: str = Field(
-        pattern=r"^(credit_bonus_percent|credit_bonus_flat|tier_discount_percent|tier_discount_flat|free_credits|double_earn)$"
+        pattern=r"^(credit_bonus_percent|credit_bonus_flat|tier_discount_percent|tier_discount_flat|free_credits|double_earn|welcome_bonus)$"
     )
     value: float = Field(gt=0)
     min_purchase: float | None = None

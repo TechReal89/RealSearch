@@ -19,6 +19,7 @@ const PROMO_TYPES: Record<string, string> = {
   tier_discount_flat: "Giảm giá tier cố định",
   free_credits: "Tặng credit miễn phí",
   double_earn: "Nhân hệ số credit",
+  welcome_bonus: "Tặng credit đăng ký mới",
 };
 
 interface FormData {

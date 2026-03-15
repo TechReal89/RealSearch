@@ -76,6 +76,8 @@ app.add_middleware(
     allow_origins=[
         "https://realsearch.techreal.vn",
         "https://admin.realsearch.techreal.vn",
+        "https://seo.toolsx.vn",
+        "https://admin.seo.toolsx.vn",
         "http://localhost:3000",
         "http://localhost:3001",
     ],
@@ -88,6 +90,13 @@ app.add_middleware(
 app.add_middleware(RateLimitMiddleware)
 
 app.include_router(api_router)
+
+# Serve uploaded files
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+upload_dir = Path("/root/RealSearch/server/uploads")
+upload_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
 
 
 @app.websocket("/ws")

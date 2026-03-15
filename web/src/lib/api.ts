@@ -97,6 +97,12 @@ export const creditApi = {
   packages: () => fetchApi("/credits/packages"),
 };
 
+export const articleApi = {
+  list: (category?: string, page = 1) =>
+    fetchApi(`/articles?${category ? `category=${category}&` : ""}page=${page}`),
+  get: (slug: string) => fetchApi(`/articles/${slug}`),
+};
+
 export const paymentApi = {
   channels: () => fetchApi("/payments/channels"),
   create: (data: Record<string, unknown>) =>

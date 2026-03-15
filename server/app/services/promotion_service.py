@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.credit import CreditTransaction, CreditType
 from app.models.promotion import Promotion, PromotionUsage
 from app.models.user import User
 
@@ -107,6 +108,10 @@ def calculate_promotion_bonus(promo: Promotion, amount: float, credit_amount: in
         result["bonus_credit"] = int(value)
         result["description"] = f"Tặng {int(value)} credit miễn phí"
 
+    elif ptype == "welcome_bonus":
+        result["bonus_credit"] = int(value)
+        result["description"] = f"Chào mừng thành viên mới - Tặng {int(value):,} credits"
+
     elif ptype == "double_earn":
         result["description"] = f"Nhân x{value} credit khi cày view"
 
@@ -140,3 +145,63 @@ async def get_active_promotions(db: AsyncSession) -> list[Promotion]:
         ).order_by(Promotion.created_at.desc())
     )
     return list(result.scalars().all())
+
+
+async def apply_welcome_bonus(db: AsyncSession, user: User) -> int:
+    """
+    Tự động tìm và áp dụng welcome_bonus promotion cho user mới đăng ký.
+    Returns số credits đã tặng (0 nếu không có promotion nào active).
+    """
+    now = datetime.now(timezone.utc)
+
+    # Tìm tất cả welcome_bonus promotions đang active
+    result = await db.execute(
+        select(Promotion).where(
+            Promotion.type == "welcome_bonus",
+            Promotion.is_active == True,
+            Promotion.start_date <= now,
+            Promotion.end_date >= now,
+        ).order_by(Promotion.value.desc())  # Ưu tiên promotion value cao nhất
+    )
+    promos = list(result.scalars().all())
+
+    total_bonus = 0
+
+    for promo in promos:
+        # Check max_uses toàn hệ thống
+        if promo.max_uses and promo.current_uses >= promo.max_uses:
+            continue
+
+        # Tính bonus
+        bonus = calculate_promotion_bonus(promo, 0, 0)
+        credit_amount = bonus["bonus_credit"]
+        if credit_amount <= 0:
+            continue
+
+        # Cộng credits cho user
+        user.credit_balance += credit_amount
+        user.total_earned += credit_amount
+        total_bonus += credit_amount
+
+        # Ghi CreditTransaction
+        tx = CreditTransaction(
+            user_id=user.id,
+            type=CreditType.PROMOTION,
+            amount=credit_amount,
+            balance_after=user.credit_balance,
+            reference_type="promotion",
+            reference_id=promo.id,
+            description=bonus["description"],
+        )
+        db.add(tx)
+
+        # Ghi PromotionUsage
+        await apply_promotion(db, promo, user.id)
+
+        logger.info(
+            "Welcome bonus applied: user=%s promo=%s credits=%d",
+            user.username, promo.name, credit_amount,
+        )
+        break  # Chỉ áp dụng 1 welcome_bonus (cái value cao nhất)
+
+    return total_bonus

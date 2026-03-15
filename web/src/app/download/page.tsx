@@ -147,10 +147,10 @@ export default function DownloadPage() {
               <p className="text-xs font-bold text-[#f5f0e8] mb-4 uppercase tracking-wider">Cài đặt trong 30 giây</p>
               <div className="space-y-3">
                 {[
-                  { text: "Tải file RealSearch.exe bên dưới", sub: "App tự cài vào máy & tạo shortcut trên Desktop" },
+                  { text: "Tải bộ cài RealSearchSetup.exe bên dưới", sub: "Bộ cài tự cài đặt Visual C++ Runtime nếu máy chưa có" },
+                  { text: "Chạy bộ cài, app tự cài vào máy & tạo shortcut", sub: "Cài đặt vào %AppData%\\RealSearch, không cần quyền Admin" },
                   { text: "Mở app, đăng nhập bằng tài khoản RealSearch", sub: "Hỗ trợ ghi nhớ đăng nhập, lần sau mở là chạy luôn" },
-                  { text: 'Nhấn "Bắt đầu" \u2014 xong!', sub: "Hệ thống tự kết nối server, nhận task và thực hiện" },
-                  { text: "Ngồi chờ credit về tài khoản", sub: "App tự cập nhật phiên bản mới, không cần tải lại" },
+                  { text: 'Nhấn "Bắt đầu" \u2014 xong!', sub: "App tự cập nhật phiên bản mới, không cần tải lại" },
                 ].map((step, i) => (
                   <div key={i} className="flex items-start gap-3 group">
                     <div className="w-7 h-7 rounded-lg gold-gradient flex items-center justify-center shrink-0 mt-0.5 group-hover:gold-glow-subtle transition-all">
@@ -165,17 +165,29 @@ export default function DownloadPage() {
               </div>
             </div>
 
-            {/* Download Button */}
+            {/* Download Button - Installer */}
             <a
-              href="https://github.com/TechReal89/RealSearch/releases/latest/download/RealSearch.exe"
+              href="https://github.com/TechReal89/RealSearch/releases/latest/download/RealSearchSetup.exe"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-2.5 w-full py-4 rounded-xl gold-gradient text-[#09090d] font-bold text-base hover:opacity-90 transition-all gold-glow btn-gold-hover"
             >
               <Download className="w-5 h-5" />
-              Tải RealSearch.exe
+              Tải Bộ Cài RealSearch
               <ArrowRight className="w-5 h-5" />
             </a>
+
+            {/* Portable download link */}
+            <div className="text-center">
+              <a
+                href="https://github.com/TechReal89/RealSearch/releases/latest/download/RealSearch.exe"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-[#555] hover:text-[#8a8999] transition-colors underline underline-offset-2"
+              >
+                Hoặc tải bản portable RealSearch.exe (nếu đã có VC++ Runtime)
+              </a>
+            </div>
 
             <div className="flex items-center justify-center gap-3 pt-1 flex-wrap">
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[rgba(212,168,75,0.05)] border border-[rgba(212,168,75,0.1)]">

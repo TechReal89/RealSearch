@@ -232,6 +232,18 @@ class MainWindow:
             style="Ghost.TButton"
         ).pack(side="right")
 
+        # Home button
+        ttk.Button(
+            info_row, text="🌐", command=self._open_home,
+            style="Ghost.TButton", width=3
+        ).pack(side="right", padx=(0, 4))
+
+        # Download update button
+        ttk.Button(
+            info_row, text="⬇ Cập nhật", command=self._download_update,
+            style="Ghost.TButton", width=10
+        ).pack(side="right", padx=(0, 4))
+
         # === Status & Controls ===
         ctrl_frame = tk.Frame(self.root, bg=COLORS["bg"], padx=15, pady=10)
         ctrl_frame.pack(fill="x")
@@ -910,6 +922,16 @@ class MainWindow:
         mode = self._mode_labels.get(display, "headed_hidden")
         config.set("browser_mode", mode)
         log.info(f"Đổi chế độ trình duyệt: {display}")
+
+    def _open_home(self):
+        """Mở trang chủ website."""
+        import webbrowser
+        webbrowser.open("https://seo.toolsx.vn")
+
+    def _download_update(self):
+        """Mở trang download phiên bản mới."""
+        import webbrowser
+        webbrowser.open("https://github.com/TechReal89/RealSearch/releases/latest/download/RealSearch.exe")
 
     def _logout(self):
         self._cleanup()

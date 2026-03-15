@@ -16,8 +16,8 @@ from app.core.security import (
 )
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.credit import CreditTransaction, CreditType
 from app.models.user import User
+from app.services.promotion_service import apply_welcome_bonus
 from app.schemas.user import (
     ChangePasswordRequest,
     MeResponse,
@@ -96,6 +96,10 @@ async def register(
         registration_ip=client_ip,
     )
     db.add(user)
+    await db.flush()  # Lấy user.id để tạo transaction
+
+    # Welcome bonus: tự động áp dụng promotion welcome_bonus (nếu có)
+    await apply_welcome_bonus(db, user)
 
     # Referral bonus: KHÔNG trao ngay - chỉ trao sau khi user mới hoàn thành 10 tasks
     # (xử lý trong job_dispatcher.py handle_task_completed)

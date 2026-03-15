@@ -9,3 +9,5 @@ from app.models.package import CreditPackage  # noqa: F401
 from app.models.promotion import Promotion, PromotionUsage  # noqa: F401
 from app.models.proxy import Proxy  # noqa: F401
 from app.models.setting import SystemSetting  # noqa: F401
+from app.models.license import Product, LicensePlan, License, LicenseDevice, LicenseLog  # noqa: F401
+from app.models.article import Article  # noqa: F401
