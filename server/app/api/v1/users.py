@@ -149,6 +149,8 @@ async def list_available_tiers(db: AsyncSession = Depends(get_db)):
             "allow_proxy": t.allow_proxy, "allow_scheduling": t.allow_scheduling,
             "allow_priority_boost": t.allow_priority_boost,
             "allow_detailed_report": t.allow_detailed_report,
+            "max_internal_clicks": t.max_internal_clicks,
+            "max_keywords": t.max_keywords,
         }
         for t in tiers
     ]
@@ -165,7 +167,7 @@ async def upgrade_tier_by_credit(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Nâng cấp tier bằng credit (không cần nạp tiền)."""
+    """Nâng cấp tier bằng credit nạp tiền (CreditsX) - KHÔNG dùng credit cày task."""
     tier_config = await db.get(MembershipTierConfig, data.tier_id)
     if not tier_config or not tier_config.is_active:
         raise BadRequestError("Gói không tồn tại hoặc đã ngừng")
@@ -179,7 +181,47 @@ async def upgrade_tier_by_credit(
     if credit_cost <= 0:
         raise BadRequestError("Gói này không hỗ trợ thanh toán bằng credit")
 
-    # Kiểm tra đủ credit
+    # Tính tổng credit nạp tiền (purchased + promotion + bonus + referral + admin_adjust + refund)
+    # KHÔNG bao gồm earn_task (tiền cày job)
+    from sqlalchemy import func as sqlfunc
+    purchased_credits = (await db.execute(
+        select(sqlfunc.coalesce(sqlfunc.sum(CreditTransaction.amount), 0))
+        .where(
+            CreditTransaction.user_id == current_user.id,
+            CreditTransaction.type.in_([
+                CreditType.PURCHASE,
+                CreditType.PROMOTION,
+                CreditType.BONUS,
+                CreditType.REFERRAL,
+                CreditType.ADMIN_ADJUST,
+                CreditType.REFUND,
+            ]),
+        )
+    )).scalar() or 0
+
+    # Trừ đi credit đã chi (spend_job dùng cả 2 loại, nhưng tier upgrade dùng riêng)
+    spent_on_tiers = (await db.execute(
+        select(sqlfunc.coalesce(sqlfunc.sum(sqlfunc.abs(CreditTransaction.amount)), 0))
+        .where(
+            CreditTransaction.user_id == current_user.id,
+            CreditTransaction.type == CreditType.SPEND_JOB,
+            CreditTransaction.reference_type == "tier_upgrade",
+        )
+    )).scalar() or 0
+
+    available_purchased = int(purchased_credits) - int(spent_on_tiers)
+    available_purchased = min(available_purchased, current_user.credit_balance)
+
+    if available_purchased < credit_cost:
+        raise BadRequestError(
+            f"Không đủ credit nạp tiền (CreditsX). "
+            f"Bạn có {available_purchased} credit nạp tiền khả dụng, "
+            f"cần {credit_cost} credit cho gói {tier_config.display_name} "
+            f"({'tháng' if data.duration == 'monthly' else 'năm'}). "
+            f"Credit kiếm từ chạy task không thể dùng để nâng cấp cấp bậc."
+        )
+
+    # Kiểm tra tổng số dư cũng đủ
     if current_user.credit_balance < credit_cost:
         raise BadRequestError(
             f"Không đủ credit. Bạn có {current_user.credit_balance} credit, "

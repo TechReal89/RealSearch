@@ -43,8 +43,8 @@ CONFIG_FILE = APP_DIR / "config.json"
 LOG_FILE = APP_DIR / "realsearch.log"
 
 DEFAULT_CONFIG = {
-    "server_url": "https://api.realsearch.techreal.vn",
-    "ws_url": "wss://api.realsearch.techreal.vn/ws",
+    "server_url": "https://api.seo.toolsx.vn",
+    "ws_url": "wss://api.seo.toolsx.vn/ws",
     "browser_mode": "headed_hidden",  # headless, headed_hidden, headed
     "enabled_job_types": ["viewlink", "keyword_seo", "backlink", "social_media"],
     "max_concurrent": 1,
@@ -75,9 +75,10 @@ class Config:
         for k, v in DEFAULT_CONFIG.items():
             if k not in self._data:
                 self._data[k] = v
-        # Migrate: old IP-based URLs to domain URLs
-        old_ip = "36.50.232.108:8000"
-        if old_ip in self._data.get("server_url", ""):
+        # Migrate: old URLs to new domain
+        old_urls = ["36.50.232.108:8000", "api.realsearch.techreal.vn"]
+        current_url = self._data.get("server_url", "")
+        if any(old in current_url for old in old_urls):
             self._data["server_url"] = DEFAULT_CONFIG["server_url"]
             self._data["ws_url"] = DEFAULT_CONFIG["ws_url"]
             self.save()

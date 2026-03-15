@@ -80,6 +80,7 @@ function HomeContent() {
       });
       localStorage.setItem("access_token", data.access_token);
       localStorage.setItem("refresh_token", data.refresh_token);
+      localStorage.setItem("show_welcome_bonus", "true");
       toast.success("Đăng ký thành công!");
       router.push("/dashboard");
     } catch (err) {

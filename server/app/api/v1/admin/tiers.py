@@ -29,6 +29,8 @@ def _tier_to_dict(t: MembershipTierConfig) -> dict:
         "allow_proxy": t.allow_proxy, "allow_scheduling": t.allow_scheduling,
         "allow_priority_boost": t.allow_priority_boost,
         "allow_detailed_report": t.allow_detailed_report,
+        "max_internal_clicks": t.max_internal_clicks,
+        "max_keywords": t.max_keywords,
         "sort_order": t.sort_order, "is_active": t.is_active,
     }
 

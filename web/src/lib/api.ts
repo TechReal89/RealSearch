@@ -88,6 +88,7 @@ export const jobApi = {
   pause: (id: number) => fetchApi(`/jobs/${id}/pause`, { method: "POST" }),
   resume: (id: number) => fetchApi(`/jobs/${id}/resume`, { method: "POST" }),
   tasks: (id: number) => fetchApi(`/jobs/${id}/tasks`),
+  pricing: () => fetchApi("/jobs/pricing"),
 };
 
 export const creditApi = {

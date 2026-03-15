@@ -4,7 +4,7 @@
 #define MyAppName "Real SEO"
 #define MyAppExeName "RealSearch.exe"
 #define MyAppPublisher "TechReal"
-#define MyAppURL "https://realsearch.techreal.vn"
+#define MyAppURL "https://seo.toolsx.vn"
 
 ; Version được truyền từ command line: /DMyAppVersion=0.6.4
 #ifndef MyAppVersion

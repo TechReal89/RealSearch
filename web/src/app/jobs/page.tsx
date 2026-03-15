@@ -13,7 +13,7 @@ import { jobApi } from "@/lib/api";
 import { toast } from "sonner";
 import {
   Briefcase, Plus, Play, Pause, RotateCcw, Pencil, Trash2, Globe, Search, Share2, Link2,
-  AlertTriangle, Sparkles,
+  AlertTriangle, Sparkles, Info, Crown, Zap,
 } from "lucide-react";
 
 const statusConfig: Record<string, { label: string; color: string; dot: string }> = {
@@ -32,30 +32,54 @@ const typeConfig: Record<string, { label: string; icon: typeof Globe; color: str
 };
 
 type Job = Record<string, unknown>;
+type Pricing = {
+  min_cost_viewlink: number;
+  min_cost_keyword: number;
+  extra_internal_click_cost: number;
+  extra_keyword_cost: number;
+  tier: string;
+  tier_max_internal_clicks: number;
+  tier_max_keywords: number;
+  allow_internal_click: boolean;
+  allow_keyword_seo: boolean;
+};
+
+const tierNames: Record<string, string> = {
+  bronze: "Đồng", silver: "Bạc", gold: "Vàng", diamond: "Kim Cương",
+};
 
 export default function JobsPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [editJob, setEditJob] = useState<Job | null>(null);
   const [cancelJob, setCancelJob] = useState<Job | null>(null);
+  const [pricing, setPricing] = useState<Pricing | null>(null);
 
   const [form, setForm] = useState({
-    title: "", job_type: "viewlink", target_url: "", target_count: 100, credit_per_view: 1, config: {} as Record<string, unknown>,
+    title: "", job_type: "viewlink", target_url: "", target_count: 100, credit_per_view: 10, config: {} as Record<string, unknown>,
   });
 
   const load = () => {
     jobApi.list("page_size=50").then((d) => setJobs(d.jobs || [])).catch(() => {});
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    jobApi.pricing().then(setPricing).catch(() => {});
+  }, []);
 
   const handleCreate = async () => {
     try {
       await jobApi.create(form);
       toast.success("Tạo công việc thành công!");
       setShowCreate(false);
-      setForm({ title: "", job_type: "viewlink", target_url: "", target_count: 100, credit_per_view: 1, config: {} });
+      resetForm();
       load();
     } catch (e) { toast.error(e instanceof Error ? e.message : "Lỗi"); }
+  };
+
+  const resetForm = () => {
+    const minCost = pricing?.min_cost_viewlink || 10;
+    setForm({ title: "", job_type: "viewlink", target_url: "", target_count: 100, credit_per_view: minCost, config: {} });
   };
 
   const openEdit = (j: Job) => {
@@ -108,7 +132,7 @@ export default function JobsPage() {
             </div>
           </div>
           <Button
-            onClick={() => { setEditJob(null); setForm({ title: "", job_type: "viewlink", target_url: "", target_count: 100, credit_per_view: 1, config: {} }); setShowCreate(true); }}
+            onClick={() => { setEditJob(null); resetForm(); setShowCreate(true); }}
             className="gold-gradient text-[#09090d] font-bold hover:opacity-90 btn-gold-hover"
           >
             <Plus className="w-4 h-4 mr-1.5" /> Tạo công việc
@@ -213,38 +237,48 @@ export default function JobsPage() {
 
       {/* Create Dialog */}
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="max-w-lg bg-[#111118] border-[rgba(212,168,75,0.12)]">
-          <DialogHeader>
-            <DialogTitle className="text-[#f5f0e8] flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg gold-gradient flex items-center justify-center">
+        <DialogContent className="max-w-2xl bg-[#111118] border-[rgba(212,168,75,0.12)] max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="text-[#f5f0e8] flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl gold-gradient flex items-center justify-center">
                 <Plus className="w-4 h-4 text-[#09090d]" />
               </div>
-              Tạo công việc mới
+              <div>
+                <span className="text-lg">Tạo công việc mới</span>
+                <p className="text-xs text-[#666] font-normal mt-0.5">Thiết lập job tăng traffic & SEO tự động</p>
+              </div>
             </DialogTitle>
           </DialogHeader>
-          <JobForm form={form} setForm={setForm} showType />
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setShowCreate(false)} className="text-[#8a8999]">Đóng</Button>
-            <Button onClick={handleCreate} className="gold-gradient text-[#09090d] font-bold btn-gold-hover">Tạo công việc</Button>
+          <div className="overflow-y-auto flex-1 pr-1 -mr-1">
+            <JobForm form={form} setForm={setForm} showType pricing={pricing} />
+          </div>
+          <DialogFooter className="flex-shrink-0 pt-4 border-t border-[rgba(255,255,255,0.04)]">
+            <Button variant="ghost" onClick={() => setShowCreate(false)} className="text-[#8a8999] hover:text-[#ccc]">Huỷ bỏ</Button>
+            <Button onClick={handleCreate} className="gold-gradient text-[#09090d] font-bold btn-gold-hover px-6">Tạo công việc</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Edit Dialog */}
       <Dialog open={!!editJob} onOpenChange={(open) => { if (!open) setEditJob(null); }}>
-        <DialogContent className="max-w-lg bg-[#111118] border-[rgba(212,168,75,0.12)]">
-          <DialogHeader>
-            <DialogTitle className="text-[#f5f0e8] flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-[rgba(212,168,75,0.1)] flex items-center justify-center">
-                <Pencil className="w-3.5 h-3.5 text-[#d4a84b]" />
+        <DialogContent className="max-w-2xl bg-[#111118] border-[rgba(212,168,75,0.12)] max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader className="flex-shrink-0">
+            <DialogTitle className="text-[#f5f0e8] flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-[rgba(212,168,75,0.1)] flex items-center justify-center">
+                <Pencil className="w-4 h-4 text-[#d4a84b]" />
               </div>
-              Sửa: {editJob?.title as string}
+              <div>
+                <span className="text-lg">Chỉnh sửa công việc</span>
+                <p className="text-xs text-[#666] font-normal mt-0.5 truncate max-w-[350px]">{editJob?.title as string}</p>
+              </div>
             </DialogTitle>
           </DialogHeader>
-          <JobForm form={form} setForm={setForm} showType={false} />
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setEditJob(null)} className="text-[#8a8999]">Đóng</Button>
-            <Button onClick={handleUpdate} className="gold-gradient text-[#09090d] font-bold btn-gold-hover">Lưu thay đổi</Button>
+          <div className="overflow-y-auto flex-1 pr-1 -mr-1">
+            <JobForm form={form} setForm={setForm} showType={false} pricing={pricing} />
+          </div>
+          <DialogFooter className="flex-shrink-0 pt-4 border-t border-[rgba(255,255,255,0.04)]">
+            <Button variant="ghost" onClick={() => setEditJob(null)} className="text-[#8a8999] hover:text-[#ccc]">Huỷ bỏ</Button>
+            <Button onClick={handleUpdate} className="gold-gradient text-[#09090d] font-bold btn-gold-hover px-6">Lưu thay đổi</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -274,141 +308,370 @@ export default function JobsPage() {
 }
 
 function JobForm({
-  form, setForm, showType,
+  form, setForm, showType, pricing,
 }: {
   form: { title: string; job_type: string; target_url: string; target_count: number; credit_per_view: number; config: Record<string, unknown> };
   setForm: (f: typeof form) => void;
   showType: boolean;
+  pricing: Pricing | null;
 }) {
   const updateConfig = (key: string, value: unknown) => {
     setForm({ ...form, config: { ...form.config, [key]: value } });
   };
 
-  const inputClass = "bg-[#09090d] border-[rgba(212,168,75,0.10)] focus:border-[#d4a84b] focus:shadow-[0_0_12px_rgba(212,168,75,0.08)] text-[#f5f0e8] placeholder:text-[#444] transition-all";
-  const labelClass = "text-[#8a8999] text-[10px] uppercase tracking-widest font-semibold";
+  const minCost = form.job_type === "keyword_seo"
+    ? (pricing?.min_cost_keyword || 20)
+    : (pricing?.min_cost_viewlink || 10);
+
+  const tierMaxClicks = pricing?.tier_max_internal_clicks || 0;
+  const tierMaxKeywords = pricing?.tier_max_keywords || 1;
+  const extraClickCost = pricing?.extra_internal_click_cost || 5;
+  const extraKeywordCost = pricing?.extra_keyword_cost || 10;
+  const userTier = pricing?.tier || "bronze";
+
+  // Calculate extra costs
+  const requestedClicks = form.config.click_internal_links ? ((form.config.max_internal_clicks as number) || 0) : 0;
+  const extraClicks = Math.max(0, requestedClicks - tierMaxClicks);
+  const extraClickTotal = extraClicks * extraClickCost;
+
+  const keywords = ((form.config.keywords as string[]) || []).filter(Boolean);
+  const extraKeywords = Math.max(0, keywords.length - tierMaxKeywords);
+  const extraKeywordTotal = extraKeywords * extraKeywordCost;
+
+  const totalExtraCost = (form.job_type === "viewlink" ? extraClickTotal : 0) +
+    (form.job_type === "keyword_seo" ? extraClickTotal + extraKeywordTotal : 0);
+
+  const effectiveCost = Math.max(form.credit_per_view, minCost);
+
+  const inputClass = "h-11 bg-[#0a0a12] border-[rgba(212,168,75,0.10)] focus:border-[#d4a84b] focus:shadow-[0_0_12px_rgba(212,168,75,0.08)] text-[#f5f0e8] placeholder:text-[#555] transition-all rounded-lg";
+  const labelClass = "text-[#a0a0b0] text-xs font-medium mb-1.5 block";
+  const helperClass = "text-[10px] text-[#555] mt-1";
+  const sectionClass = "space-y-4 rounded-xl p-5 border border-[rgba(212,168,75,0.08)] bg-[rgba(212,168,75,0.015)]";
+
+  const jobTypes = [
+    { value: "viewlink", label: "View Link", desc: "Tăng lượt truy cập website", icon: Globe, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
+    { value: "keyword_seo", label: "Keyword SEO", desc: "Tăng thứ hạng từ khóa Google", icon: Search, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
+    { value: "backlink", label: "Backlink", desc: "Tạo backlink chất lượng", icon: Link2, color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
+    { value: "social_media", label: "Social Media", desc: "Tăng view mạng xã hội", icon: Share2, color: "text-pink-400", bg: "bg-pink-500/10", border: "border-pink-500/20" },
+  ];
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Label className={labelClass}>Tiêu đề</Label>
-        <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="VD: Tăng view trang chủ" className={inputClass} />
-      </div>
+    <div className="space-y-6">
+      {/* Job Type Selector */}
       {showType && (
         <div>
-          <Label className={labelClass}>Loại công việc</Label>
-          <Select value={form.job_type} onValueChange={(v) => v && setForm({ ...form, job_type: v, config: {} })}>
-            <SelectTrigger className={inputClass}><SelectValue /></SelectTrigger>
-            <SelectContent className="bg-[#111118] border-[rgba(212,168,75,0.12)]">
-              <SelectItem value="viewlink">View Link</SelectItem>
-              <SelectItem value="keyword_seo">Keyword SEO</SelectItem>
-              <SelectItem value="backlink">Backlink</SelectItem>
-              <SelectItem value="social_media">Social Media</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-      <div>
-        <Label className={labelClass}>
-          {form.job_type === "keyword_seo" ? "URL trang đích" : "URL mục tiêu"}
-        </Label>
-        <Input value={form.target_url} onChange={(e) => setForm({ ...form, target_url: e.target.value })} placeholder="https://example.com" className={inputClass} />
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <Label className={labelClass}>Số lượt cần</Label>
-          <Input type="number" value={form.target_count} onChange={(e) => setForm({ ...form, target_count: +e.target.value })} className={inputClass} />
-        </div>
-        <div>
-          <Label className={labelClass}>Credit/lượt</Label>
-          <Input type="number" value={form.credit_per_view} onChange={(e) => setForm({ ...form, credit_per_view: +e.target.value })} className={inputClass} />
-        </div>
-      </div>
-
-      {form.job_type === "viewlink" && (
-        <div className="space-y-3 rounded-xl p-4 border border-[rgba(212,168,75,0.08)] bg-[rgba(212,168,75,0.02)]">
-          <p className="text-xs font-bold text-[#d4a84b] uppercase tracking-wider flex items-center gap-1.5">
-            <Sparkles className="w-3 h-3" /> Cấu hình View Link
-          </p>
+          <label className={labelClass}>Chọn loại công việc</label>
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-[10px] text-[#8a8999] uppercase tracking-wider">Thời gian min (s)</Label>
-              <Input type="number" value={(form.config.min_time_on_site as number) || 30} onChange={(e) => updateConfig("min_time_on_site", +e.target.value)} className={inputClass} />
-            </div>
-            <div>
-              <Label className="text-[10px] text-[#8a8999] uppercase tracking-wider">Thời gian max (s)</Label>
-              <Input type="number" value={(form.config.max_time_on_site as number) || 120} onChange={(e) => updateConfig("max_time_on_site", +e.target.value)} className={inputClass} />
-            </div>
+            {jobTypes.map((jt) => {
+              const Icon = jt.icon;
+              const selected = form.job_type === jt.value;
+              return (
+                <button
+                  key={jt.value}
+                  type="button"
+                  onClick={() => {
+                    const newMinCost = jt.value === "keyword_seo" ? (pricing?.min_cost_keyword || 20) : (pricing?.min_cost_viewlink || 10);
+                    setForm({ ...form, job_type: jt.value, config: {}, credit_per_view: newMinCost });
+                  }}
+                  className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left ${
+                    selected
+                      ? `${jt.bg} ${jt.border} border-opacity-100 shadow-sm`
+                      : "bg-[#0a0a12] border-[rgba(255,255,255,0.04)] hover:border-[rgba(255,255,255,0.08)]"
+                  }`}
+                >
+                  <div className={`w-9 h-9 rounded-lg ${jt.bg} flex items-center justify-center flex-shrink-0`}>
+                    <Icon className={`w-4 h-4 ${jt.color}`} />
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`text-sm font-semibold ${selected ? jt.color : "text-[#ccc]"}`}>{jt.label}</p>
+                    <p className="text-[10px] text-[#666] leading-tight">{jt.desc}</p>
+                  </div>
+                </button>
+              );
+            })}
           </div>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="vl_click" checked={!!form.config.click_internal_links} onChange={(e) => updateConfig("click_internal_links", e.target.checked)} className="h-4 w-4 rounded accent-[#d4a84b]" />
-            <Label htmlFor="vl_click" className="text-xs text-[#8a8999] cursor-pointer">Click vào các link nội bộ trên trang</Label>
-          </div>
-          {!!form.config.click_internal_links && (
-            <div>
-              <Label className="text-[10px] text-[#8a8999] uppercase tracking-wider">Số link nội bộ tối đa</Label>
-              <Input type="number" value={(form.config.max_internal_clicks as number) || 3} onChange={(e) => updateConfig("max_internal_clicks", +e.target.value)} className={inputClass} />
-            </div>
-          )}
         </div>
       )}
 
-      {form.job_type === "keyword_seo" && (
-        <div className="space-y-3 rounded-xl p-4 border border-[rgba(212,168,75,0.08)] bg-[rgba(212,168,75,0.02)]">
-          <p className="text-xs font-bold text-[#d4a84b] uppercase tracking-wider flex items-center gap-1.5">
-            <Search className="w-3 h-3" /> Cấu hình Keyword SEO
+      {/* Basic Info Section */}
+      <div className={sectionClass}>
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-5 h-5 rounded-md bg-[rgba(212,168,75,0.1)] flex items-center justify-center">
+            <Briefcase className="w-3 h-3 text-[#d4a84b]" />
+          </div>
+          <span className="text-xs font-semibold text-[#d4a84b] uppercase tracking-wider">Thông tin cơ bản</span>
+        </div>
+
+        <div>
+          <label className={labelClass}>Tiêu đề công việc</label>
+          <Input
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+            placeholder="VD: Tăng traffic trang chủ tháng 3"
+            className={inputClass}
+          />
+          <p className={helperClass}>Đặt tên dễ nhớ để quản lý</p>
+        </div>
+
+        <div>
+          <label className={labelClass}>
+            {form.job_type === "keyword_seo" ? "URL trang đích (landing page)" : "URL mục tiêu"}
+          </label>
+          <div className="relative">
+            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#555]" />
+            <Input
+              value={form.target_url}
+              onChange={(e) => setForm({ ...form, target_url: e.target.value })}
+              placeholder="https://example.com"
+              className={`${inputClass} pl-10`}
+            />
+          </div>
+          <p className={helperClass}>
+            {form.job_type === "keyword_seo" ? "URL sẽ được click khi tìm thấy trên Google" : "Trang web sẽ nhận lượt truy cập"}
           </p>
+        </div>
+      </div>
+
+      {/* Budget Section */}
+      <div className={sectionClass}>
+        <div className="flex items-center gap-2 mb-1">
+          <div className="w-5 h-5 rounded-md bg-[rgba(212,168,75,0.1)] flex items-center justify-center">
+            <Sparkles className="w-3 h-3 text-[#d4a84b]" />
+          </div>
+          <span className="text-xs font-semibold text-[#d4a84b] uppercase tracking-wider">Ngân sách & Số lượng</span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <div>
-            <Label className="text-[10px] text-[#8a8999] uppercase tracking-wider">Từ khoá (mỗi dòng 1 từ khoá)</Label>
+            <label className={labelClass}>Số lượt cần</label>
+            <Input
+              type="number"
+              value={form.target_count}
+              onChange={(e) => setForm({ ...form, target_count: +e.target.value })}
+              className={inputClass}
+              min={1}
+            />
+            <p className={helperClass}>Tổng lượt thực hiện</p>
+          </div>
+          <div>
+            <label className={labelClass}>Credit / lượt</label>
+            <Input
+              type="number"
+              value={form.credit_per_view}
+              onChange={(e) => setForm({ ...form, credit_per_view: Math.max(+e.target.value, minCost) })}
+              className={inputClass}
+              min={minCost}
+            />
+            <p className={helperClass}>Tối thiểu {minCost} credit/lượt</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between px-4 py-3 rounded-lg bg-[rgba(212,168,75,0.04)] border border-[rgba(212,168,75,0.08)]">
+          <span className="text-xs text-[#8a8999]">Tổng chi phí ước tính</span>
+          <span className="text-sm font-bold text-[#d4a84b] font-mono">
+            {(form.target_count * effectiveCost).toLocaleString()} credit
+          </span>
+        </div>
+
+        {totalExtraCost > 0 && (
+          <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-[rgba(168,85,247,0.05)] border border-[rgba(168,85,247,0.15)]">
+            <Zap className="w-4 h-4 text-purple-400 mt-0.5 flex-shrink-0" />
+            <div className="text-xs text-purple-300">
+              <p className="font-semibold mb-1">Chi phí tính năng nâng cao (mỗi lượt):</p>
+              {extraClicks > 0 && (
+                <p>+{extraClicks} link nội bộ vượt quota = +{extraClickTotal} credit/lượt</p>
+              )}
+              {extraKeywords > 0 && (
+                <p>+{extraKeywords} keyword vượt quota = +{extraKeywordTotal} credit/lượt</p>
+              )}
+              <p className="mt-1 text-purple-400 font-medium">
+                Nâng cấp cấp bậc để tăng quota miễn phí
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ViewLink Config */}
+      {form.job_type === "viewlink" && (
+        <div className={sectionClass}>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-5 h-5 rounded-md bg-blue-500/10 flex items-center justify-center">
+              <Globe className="w-3 h-3 text-blue-400" />
+            </div>
+            <span className="text-xs font-semibold text-blue-400 uppercase tracking-wider">Cấu hình View Link</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Thời gian tối thiểu (giây)</label>
+              <Input type="number" value={(form.config.min_time_on_site as number) || 30} onChange={(e) => updateConfig("min_time_on_site", +e.target.value)} className={inputClass} min={5} />
+              <p className={helperClass}>Ở trên trang ít nhất</p>
+            </div>
+            <div>
+              <label className={labelClass}>Thời gian tối đa (giây)</label>
+              <Input type="number" value={(form.config.max_time_on_site as number) || 120} onChange={(e) => updateConfig("max_time_on_site", +e.target.value)} className={inputClass} min={10} />
+              <p className={helperClass}>Ở trên trang nhiều nhất</p>
+            </div>
+          </div>
+
+          {/* Internal Click - Premium Feature */}
+          <div className="rounded-lg border border-[rgba(255,255,255,0.04)] overflow-hidden">
+            <div className="flex items-center justify-between p-3.5 bg-[#0a0a12]">
+              <div className="flex items-center gap-3">
+                <input type="checkbox" id="vl_click" checked={!!form.config.click_internal_links} onChange={(e) => updateConfig("click_internal_links", e.target.checked)}
+                  className="h-4 w-4 rounded accent-[#d4a84b]"
+                  disabled={!pricing?.allow_internal_click && tierMaxClicks === 0}
+                />
+                <div>
+                  <Label htmlFor="vl_click" className="text-sm text-[#ccc] cursor-pointer font-medium flex items-center gap-1.5">
+                    Click link nội bộ
+                    <Crown className="w-3.5 h-3.5 text-[#d4a84b]" />
+                  </Label>
+                  <p className="text-[10px] text-[#555]">Tự động click vào các link trên trang để tăng pageview</p>
+                </div>
+              </div>
+            </div>
+
+            {!!form.config.click_internal_links && (
+              <div className="p-3.5 border-t border-[rgba(255,255,255,0.04)] space-y-3">
+                <div className="flex items-center gap-2 text-[10px] text-[#888] bg-[rgba(212,168,75,0.04)] rounded-md px-3 py-2">
+                  <Crown className="w-3 h-3 text-[#d4a84b]" />
+                  <span>Cấp <strong className="text-[#d4a84b]">{tierNames[userTier]}</strong>: miễn phí {tierMaxClicks} link/lượt</span>
+                  {tierMaxClicks < 10 && <span className="text-[#666]">| Thêm: +{extraClickCost} credit/link/lượt</span>}
+                </div>
+                <div>
+                  <label className={labelClass}>Số link nội bộ tối đa</label>
+                  <Input type="number" value={(form.config.max_internal_clicks as number) || tierMaxClicks || 1}
+                    onChange={(e) => updateConfig("max_internal_clicks", +e.target.value)}
+                    className={inputClass} min={1} max={10}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Keyword SEO Config */}
+      {form.job_type === "keyword_seo" && (
+        <div className={sectionClass}>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-5 h-5 rounded-md bg-emerald-500/10 flex items-center justify-center">
+              <Search className="w-3 h-3 text-emerald-400" />
+            </div>
+            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">Cấu hình Keyword SEO</span>
+          </div>
+
+          {/* Keywords with tier info */}
+          <div>
+            <label className={labelClass}>Từ khoá (mỗi dòng 1 từ khoá)</label>
+            <div className="flex items-center gap-2 text-[10px] text-[#888] bg-[rgba(212,168,75,0.04)] rounded-md px-3 py-2 mb-2">
+              <Crown className="w-3 h-3 text-[#d4a84b]" />
+              <span>Cấp <strong className="text-[#d4a84b]">{tierNames[userTier]}</strong>: miễn phí {tierMaxKeywords} keyword/job</span>
+              {tierMaxKeywords < 10 && <span className="text-[#666]">| Thêm: +{extraKeywordCost} credit/keyword/lượt</span>}
+            </div>
             <Textarea
               value={((form.config.keywords as string[]) || []).join("\n")}
               onChange={(e) => updateConfig("keywords", e.target.value.split("\n").filter(Boolean))}
-              placeholder={"mua laptop giá rẻ\nlaptop tốt nhất 2024"}
-              rows={3}
-              className={`${inputClass} resize-none`}
+              placeholder={"mua laptop giá rẻ\nlaptop tốt nhất 2024\nmua laptop ở đâu"}
+              rows={4}
+              className={`${inputClass} h-auto resize-none`}
             />
+            <div className="flex items-center justify-between mt-1">
+              <p className={helperClass}>Hệ thống sẽ search từ khoá trên Google và click vào trang của bạn</p>
+              <span className={`text-[10px] font-mono ${keywords.length > tierMaxKeywords ? "text-purple-400" : "text-[#555]"}`}>
+                {keywords.length}/{tierMaxKeywords} miễn phí
+              </span>
+            </div>
           </div>
+
           <div>
-            <Label className="text-[10px] text-[#8a8999] uppercase tracking-wider">Domain mục tiêu</Label>
-            <Input value={(form.config.target_domain as string) || ""} onChange={(e) => updateConfig("target_domain", e.target.value)} placeholder="example.com" className={inputClass} />
+            <label className={labelClass}>Domain mục tiêu</label>
+            <div className="relative">
+              <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#555]" />
+              <Input value={(form.config.target_domain as string) || ""} onChange={(e) => updateConfig("target_domain", e.target.value)} placeholder="example.com" className={`${inputClass} pl-10`} />
+            </div>
+            <p className={helperClass}>Domain cần tìm và click trong kết quả Google</p>
           </div>
+
           <div>
-            <Label className="text-[10px] text-[#8a8999] uppercase tracking-wider">Tìm kiếm trên</Label>
+            <label className={labelClass}>Tìm kiếm trên</label>
             <Select value={(form.config.search_engine as string) || "google.com"} onValueChange={(v) => updateConfig("search_engine", v)}>
               <SelectTrigger className={inputClass}><SelectValue /></SelectTrigger>
               <SelectContent className="bg-[#111118] border-[rgba(212,168,75,0.12)]">
-                <SelectItem value="google.com">Google Quốc tế</SelectItem>
-                <SelectItem value="google.com.vn">Google Việt Nam</SelectItem>
+                <SelectItem value="google.com">Google Quốc tế (google.com)</SelectItem>
+                <SelectItem value="google.com.vn">Google Việt Nam (google.com.vn)</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+
+          <div className="grid grid-cols-3 gap-4">
             <div>
-              <Label className="text-[10px] text-[#8a8999] uppercase tracking-wider">Tìm tới trang</Label>
-              <Input type="number" value={(form.config.max_search_page as number) || 5} onChange={(e) => updateConfig("max_search_page", +e.target.value)} className={inputClass} />
+              <label className={labelClass}>Tìm tới trang</label>
+              <Input type="number" value={(form.config.max_search_page as number) || 5} onChange={(e) => updateConfig("max_search_page", +e.target.value)} className={inputClass} min={1} max={10} />
+              <p className={helperClass}>Số trang Google</p>
             </div>
             <div>
-              <Label className="text-[10px] text-[#8a8999] uppercase tracking-wider">Ở trên site min</Label>
-              <Input type="number" value={(form.config.min_time_on_site as number) || 30} onChange={(e) => updateConfig("min_time_on_site", +e.target.value)} className={inputClass} />
+              <label className={labelClass}>Ở trên site min (s)</label>
+              <Input type="number" value={(form.config.min_time_on_site as number) || 30} onChange={(e) => updateConfig("min_time_on_site", +e.target.value)} className={inputClass} min={5} />
             </div>
             <div>
-              <Label className="text-[10px] text-[#8a8999] uppercase tracking-wider">Ở trên site max</Label>
-              <Input type="number" value={(form.config.max_time_on_site as number) || 90} onChange={(e) => updateConfig("max_time_on_site", +e.target.value)} className={inputClass} />
+              <label className={labelClass}>Ở trên site max (s)</label>
+              <Input type="number" value={(form.config.max_time_on_site as number) || 90} onChange={(e) => updateConfig("max_time_on_site", +e.target.value)} className={inputClass} min={10} />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="kw_click" checked={!!form.config.click_internal_links} onChange={(e) => updateConfig("click_internal_links", e.target.checked)} className="h-4 w-4 rounded accent-[#d4a84b]" />
-            <Label htmlFor="kw_click" className="text-xs text-[#8a8999] cursor-pointer">Click vào bài viết liên quan</Label>
+
+          {/* Internal Click for Keyword SEO */}
+          <div className="rounded-lg border border-[rgba(255,255,255,0.04)] overflow-hidden">
+            <div className="flex items-center justify-between p-3.5 bg-[#0a0a12]">
+              <div className="flex items-center gap-3">
+                <input type="checkbox" id="kw_click" checked={!!form.config.click_internal_links} onChange={(e) => updateConfig("click_internal_links", e.target.checked)}
+                  className="h-4 w-4 rounded accent-[#d4a84b]"
+                  disabled={!pricing?.allow_internal_click && tierMaxClicks === 0}
+                />
+                <div>
+                  <Label htmlFor="kw_click" className="text-sm text-[#ccc] cursor-pointer font-medium flex items-center gap-1.5">
+                    Click bài viết liên quan
+                    <Crown className="w-3.5 h-3.5 text-[#d4a84b]" />
+                  </Label>
+                  <p className="text-[10px] text-[#555]">Sau khi vào trang, click thêm các bài viết liên quan</p>
+                </div>
+              </div>
+            </div>
+
+            {!!form.config.click_internal_links && (
+              <div className="p-3.5 border-t border-[rgba(255,255,255,0.04)] space-y-3">
+                <div className="flex items-center gap-2 text-[10px] text-[#888] bg-[rgba(212,168,75,0.04)] rounded-md px-3 py-2">
+                  <Crown className="w-3 h-3 text-[#d4a84b]" />
+                  <span>Cấp <strong className="text-[#d4a84b]">{tierNames[userTier]}</strong>: miễn phí {tierMaxClicks} link/lượt</span>
+                  {tierMaxClicks < 10 && <span className="text-[#666]">| Thêm: +{extraClickCost} credit/link/lượt</span>}
+                </div>
+                <div>
+                  <label className={labelClass}>Số link nội bộ tối đa</label>
+                  <Input type="number" value={(form.config.max_internal_clicks as number) || tierMaxClicks || 1}
+                    onChange={(e) => updateConfig("max_internal_clicks", +e.target.value)}
+                    className={inputClass} min={1} max={10}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
 
+      {/* Social Media Config */}
       {form.job_type === "social_media" && (
-        <div className="space-y-3 rounded-xl p-4 border border-[rgba(212,168,75,0.08)] bg-[rgba(212,168,75,0.02)]">
-          <p className="text-xs font-bold text-[#d4a84b] uppercase tracking-wider flex items-center gap-1.5">
-            <Share2 className="w-3 h-3" /> Cấu hình Social Media
-          </p>
+        <div className={sectionClass}>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-5 h-5 rounded-md bg-pink-500/10 flex items-center justify-center">
+              <Share2 className="w-3 h-3 text-pink-400" />
+            </div>
+            <span className="text-xs font-semibold text-pink-400 uppercase tracking-wider">Cấu hình Social Media</span>
+          </div>
+
           <div>
-            <Label className="text-[10px] text-[#8a8999] uppercase tracking-wider">Nền tảng</Label>
+            <label className={labelClass}>Nền tảng</label>
             <Select value={(form.config.platform as string) || "youtube"} onValueChange={(v) => updateConfig("platform", v)}>
               <SelectTrigger className={inputClass}><SelectValue /></SelectTrigger>
               <SelectContent className="bg-[#111118] border-[rgba(212,168,75,0.12)]">
@@ -418,14 +681,15 @@ function JobForm({
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <Label className="text-[10px] text-[#8a8999] uppercase tracking-wider">Xem min (s)</Label>
-              <Input type="number" value={(form.config.min_watch_time as number) || 30} onChange={(e) => updateConfig("min_watch_time", +e.target.value)} className={inputClass} />
+              <label className={labelClass}>Thời gian xem tối thiểu (s)</label>
+              <Input type="number" value={(form.config.min_watch_time as number) || 30} onChange={(e) => updateConfig("min_watch_time", +e.target.value)} className={inputClass} min={5} />
             </div>
             <div>
-              <Label className="text-[10px] text-[#8a8999] uppercase tracking-wider">Xem max (s)</Label>
-              <Input type="number" value={(form.config.max_watch_time as number) || 120} onChange={(e) => updateConfig("max_watch_time", +e.target.value)} className={inputClass} />
+              <label className={labelClass}>Thời gian xem tối đa (s)</label>
+              <Input type="number" value={(form.config.max_watch_time as number) || 120} onChange={(e) => updateConfig("max_watch_time", +e.target.value)} className={inputClass} min={10} />
             </div>
           </div>
         </div>

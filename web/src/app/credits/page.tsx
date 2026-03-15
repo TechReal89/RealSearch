@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { UserLayout } from "@/components/layout/user-layout";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { creditApi } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
 import {
   Coins, TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Gift, RefreshCw, Settings2, Sparkles, Clock,
+  Wallet, CreditCard, Star, Briefcase,
 } from "lucide-react";
 
 const typeConfig: Record<string, { label: string; icon: typeof Coins; color: string; bg: string }> = {
@@ -25,35 +26,26 @@ export default function CreditsPage() {
   const [history, setHistory] = useState<Array<Record<string, unknown>>>([]);
 
   useEffect(() => {
-    creditApi.history("page_size=50").then((d) => setHistory(d.transactions || [])).catch(() => {});
+    creditApi.history("page_size=200").then((d) => setHistory(d.transactions || [])).catch(() => {});
   }, []);
 
-  const statCards = [
-    {
-      label: "Số dư hiện tại",
-      value: user?.credit_balance.toLocaleString() || "0",
-      icon: Coins,
-      color: "text-[#d4a84b]",
-      iconBg: "gold-gradient",
-      iconColor: "text-[#09090d]",
-    },
-    {
-      label: "Tổng đã kiếm",
-      value: `+${user?.total_earned.toLocaleString() || "0"}`,
-      icon: TrendingUp,
-      color: "text-emerald-400",
-      iconBg: "bg-emerald-500/10",
-      iconColor: "text-emerald-400",
-    },
-    {
-      label: "Tổng đã chi",
-      value: `-${user?.total_spent.toLocaleString() || "0"}`,
-      icon: TrendingDown,
-      color: "text-rose-400",
-      iconBg: "bg-rose-500/10",
-      iconColor: "text-rose-400",
-    },
-  ];
+  const breakdown = useMemo(() => {
+    let purchased = 0;
+    let promotions = 0;
+    let taskEarnings = 0;
+    let totalSpent = 0;
+
+    for (const t of history) {
+      const amount = t.amount as number;
+      const type = t.type as string;
+      if (type === "purchase") purchased += amount;
+      else if (type === "promotion" || type === "bonus" || type === "referral") promotions += amount;
+      else if (type === "earn_task") taskEarnings += amount;
+      if (amount < 0) totalSpent += Math.abs(amount);
+    }
+
+    return { purchased, promotions, taskEarnings, totalSpent };
+  }, [history]);
 
   return (
     <UserLayout>
@@ -70,22 +62,75 @@ export default function CreditsPage() {
 
         <div className="ornament-line" />
 
-        {/* Stat Cards */}
+        {/* Total Balance - Featured Card */}
+        <div className="luxury-card rounded-xl p-6 relative overflow-hidden animate-fade-up">
+          <div className="absolute top-0 right-0 w-40 h-40 opacity-[0.03]" style={{
+            background: "radial-gradient(circle, #d4a84b 0%, transparent 70%)",
+          }} />
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-[10px] text-[#8a8999] uppercase tracking-widest font-semibold">Tổng số dư hiện tại</span>
+              <div className="text-4xl font-bold text-[#d4a84b] stat-value mt-2">{user?.credit_balance.toLocaleString() || "0"}</div>
+              <p className="text-xs text-[#555] mt-1">credits</p>
+            </div>
+            <div className="w-14 h-14 rounded-2xl gold-gradient flex items-center justify-center">
+              <Wallet className="w-7 h-7 text-[#09090d]" />
+            </div>
+          </div>
+        </div>
+
+        {/* Breakdown Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {statCards.map((card, i) => {
-            const Icon = card.icon;
-            return (
-              <div key={card.label} className="luxury-card rounded-xl p-5 animate-fade-up" style={{ animationDelay: `${i * 0.05}s` }}>
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-[10px] text-[#8a8999] uppercase tracking-widest font-semibold">{card.label}</span>
-                  <div className={`w-8 h-8 rounded-lg ${card.iconBg} flex items-center justify-center`}>
-                    <Icon className={`w-4 h-4 ${card.iconColor}`} />
-                  </div>
-                </div>
-                <div className={`text-3xl font-bold ${card.color} stat-value`}>{card.value}</div>
+          {/* Tiền nạp */}
+          <div className="luxury-card rounded-xl p-5 animate-fade-up" style={{ animationDelay: "0.05s" }}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] text-[#8a8999] uppercase tracking-widest font-semibold">Tiền nạp</span>
+              <div className="w-8 h-8 rounded-lg bg-[rgba(212,168,75,0.1)] flex items-center justify-center">
+                <CreditCard className="w-4 h-4 text-[#d4a84b]" />
               </div>
-            );
-          })}
+            </div>
+            <div className="text-2xl font-bold text-[#d4a84b] stat-value">+{breakdown.purchased.toLocaleString()}</div>
+            <p className="text-[11px] text-[#555] mt-1">Credits đã mua / nạp tiền</p>
+          </div>
+
+          {/* Tiền khuyến mãi */}
+          <div className="luxury-card rounded-xl p-5 animate-fade-up" style={{ animationDelay: "0.1s" }}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] text-[#8a8999] uppercase tracking-widest font-semibold">Khuyến mãi</span>
+              <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                <Star className="w-4 h-4 text-purple-400" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold text-purple-400 stat-value">+{breakdown.promotions.toLocaleString()}</div>
+            <p className="text-[11px] text-[#555] mt-1">Thưởng, khuyến mãi, giới thiệu</p>
+          </div>
+
+          {/* Tiền làm nhiệm vụ */}
+          <div className="luxury-card rounded-xl p-5 animate-fade-up" style={{ animationDelay: "0.15s" }}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] text-[#8a8999] uppercase tracking-widest font-semibold">Làm nhiệm vụ</span>
+              <div className="w-8 h-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                <Briefcase className="w-4 h-4 text-emerald-400" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold text-emerald-400 stat-value">+{breakdown.taskEarnings.toLocaleString()}</div>
+            <p className="text-[11px] text-[#555] mt-1">Credits kiếm từ chạy task</p>
+          </div>
+        </div>
+
+        {/* Summary Bar */}
+        <div className="luxury-card rounded-xl p-4 flex items-center justify-between animate-fade-up" style={{ animationDelay: "0.2s" }}>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-emerald-400" />
+            <span className="text-sm text-[#8a8999]">Tổng đã kiếm:</span>
+            <span className="text-sm font-bold text-emerald-400 stat-value">+{(user?.total_earned || 0).toLocaleString()}</span>
+          </div>
+          <div className="w-px h-5 bg-[rgba(255,255,255,0.06)]" />
+          <div className="flex items-center gap-2">
+            <TrendingDown className="w-4 h-4 text-rose-400" />
+            <span className="text-sm text-[#8a8999]">Tổng đã chi:</span>
+            <span className="text-sm font-bold text-rose-400 stat-value">-{(user?.total_spent || 0).toLocaleString()}</span>
+          </div>
         </div>
 
         {/* Transaction History */}

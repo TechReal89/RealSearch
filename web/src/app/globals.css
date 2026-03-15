@@ -402,6 +402,45 @@
   letter-spacing: -0.02em;
 }
 
+/* === WELCOME CELEBRATION ANIMATIONS === */
+@keyframes fade-in {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes scale-in {
+  0% { opacity: 0; transform: scale(0.8) translateY(20px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes float-particle {
+  0% { transform: translateY(0) translateX(0) scale(1); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 0.5; }
+  100% { transform: translateY(-200px) translateX(40px) scale(0); opacity: 0; }
+}
+
+@keyframes spin-slow {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out forwards;
+}
+
+.animate-scale-in {
+  animation: scale-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+.animate-float-particle {
+  animation: float-particle 4s ease-out infinite;
+}
+
+.animate-spin-slow {
+  animation: spin-slow 8s linear infinite;
+}
+
 /* === DIVIDER LUXURY === */
 .divider-luxury {
   display: flex;

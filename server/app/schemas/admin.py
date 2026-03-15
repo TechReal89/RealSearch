@@ -59,6 +59,8 @@ class TierConfigCreate(BaseModel):
     allow_scheduling: bool = False
     allow_priority_boost: bool = False
     allow_detailed_report: bool = False
+    max_internal_clicks: int = 0
+    max_keywords: int = 1
     sort_order: int = 0
 
 

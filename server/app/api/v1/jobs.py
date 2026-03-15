@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.exceptions import BadRequestError, ForbiddenError, NotFoundError
 from app.database import get_db
 from app.dependencies import get_current_user
-from app.models.job import Job, JobStatus
+from app.models.job import Job, JobStatus, JobType
+from app.models.setting import SystemSetting
+from app.models.tier import MembershipTierConfig
 from app.models.user import User
 from app.schemas.job import JobCreate, JobListResponse, JobResponse, JobUpdate
 
@@ -18,6 +20,19 @@ async def _get_user_job(job_id: int, user: User, db: AsyncSession) -> Job:
     if not job:
         raise NotFoundError("Job not found")
     return job
+
+
+async def _get_setting(db: AsyncSession, key: str, default: int = 0) -> int:
+    result = await db.execute(select(SystemSetting).where(SystemSetting.key == key))
+    setting = result.scalar_one_or_none()
+    return int(setting.value) if setting else default
+
+
+async def _get_user_tier_config(db: AsyncSession, user: User) -> MembershipTierConfig | None:
+    result = await db.execute(
+        select(MembershipTierConfig).where(MembershipTierConfig.name == user.tier.value)
+    )
+    return result.scalar_one_or_none()
 
 
 @router.get("", response_model=JobListResponse)
@@ -46,13 +61,77 @@ async def list_jobs(
     )
 
 
+@router.get("/pricing")
+async def get_job_pricing(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get job pricing config and user's tier limits for the job creation form."""
+    tier_config = await _get_user_tier_config(db, current_user)
+
+    return {
+        "min_cost_viewlink": await _get_setting(db, "min_cost_viewlink", 10),
+        "min_cost_keyword": await _get_setting(db, "min_cost_keyword", 20),
+        "extra_internal_click_cost": await _get_setting(db, "extra_internal_click_cost", 5),
+        "extra_keyword_cost": await _get_setting(db, "extra_keyword_cost", 10),
+        "tier": current_user.tier.value,
+        "tier_max_internal_clicks": tier_config.max_internal_clicks if tier_config else 0,
+        "tier_max_keywords": tier_config.max_keywords if tier_config else 1,
+        "allow_internal_click": tier_config.allow_internal_click if tier_config else False,
+        "allow_keyword_seo": tier_config.allow_keyword_seo if tier_config else False,
+    }
+
+
 @router.post("", response_model=JobResponse, status_code=201)
 async def create_job(
     data: JobCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Tính chi phí tối thiểu: credit_per_view * target_count (hoặc budget nếu có)
+    tier_config = await _get_user_tier_config(db, current_user)
+
+    # Enforce minimum credit_per_view based on job type
+    if data.job_type == JobType.VIEWLINK:
+        min_cost = await _get_setting(db, "min_cost_viewlink", 10)
+        if data.credit_per_view < min_cost:
+            raise BadRequestError(
+                f"ViewLink yêu cầu tối thiểu {min_cost} credit/lượt. "
+                f"Bạn đang đặt {data.credit_per_view} credit/lượt."
+            )
+    elif data.job_type == JobType.KEYWORD_SEO:
+        min_cost = await _get_setting(db, "min_cost_keyword", 20)
+        if data.credit_per_view < min_cost:
+            raise BadRequestError(
+                f"Keyword SEO yêu cầu tối thiểu {min_cost} credit/lượt. "
+                f"Bạn đang đặt {data.credit_per_view} credit/lượt."
+            )
+
+    # Validate internal clicks against tier
+    config = data.config or {}
+    if config.get("click_internal_links"):
+        if tier_config and not tier_config.allow_internal_click:
+            raise BadRequestError(
+                "Cấp bậc của bạn không hỗ trợ tính năng click link nội bộ. "
+                "Vui lòng nâng cấp tài khoản."
+            )
+        max_clicks = config.get("max_internal_clicks", 0)
+        tier_limit = tier_config.max_internal_clicks if tier_config else 0
+        extra_internal_click_cost = await _get_setting(db, "extra_internal_click_cost", 5)
+        extra_clicks = max(0, max_clicks - tier_limit)
+        if extra_clicks > 0:
+            extra_cost = extra_clicks * extra_internal_click_cost
+            # Extra cost is added per view on top of credit_per_view
+            # We just validate and inform, the actual cost is credit_per_view
+            # which the user should have set appropriately
+
+    # Validate keywords against tier
+    if data.job_type == JobType.KEYWORD_SEO:
+        keywords = config.get("keywords", [])
+        tier_limit = tier_config.max_keywords if tier_config else 1
+        extra_keyword_cost = await _get_setting(db, "extra_keyword_cost", 10)
+        extra_keywords = max(0, len(keywords) - tier_limit)
+
+    # Check credit balance
     estimated_cost = data.total_credit_budget or (data.credit_per_view * data.target_count)
     if current_user.credit_balance < data.credit_per_view:
         raise BadRequestError(
