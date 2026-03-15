@@ -39,6 +39,33 @@ class JobDispatcher:
         self._keyword_history: dict[str, list[float]] = defaultdict(list)
         # Anti-CAPTCHA interleaving: session_id → non-keyword tasks since last keyword
         self._interleave_counter: dict[str, int] = defaultdict(lambda: KEYWORD_INTERLEAVE_COUNT)
+        # Job failure tracking: job_id → (consecutive_fail_count, last_fail_time)
+        self._job_failures: dict[int, tuple[int, float]] = {}
+
+    def _is_job_in_backoff(self, job_id: int) -> bool:
+        """Check if job has too many consecutive failures and is in backoff period."""
+        if job_id not in self._job_failures:
+            return False
+        fail_count, last_fail_time = self._job_failures[job_id]
+        if fail_count < 3:
+            return False
+        # Backoff: 5 minutes after 3+ consecutive failures
+        backoff_seconds = min(300 * (fail_count // 3), 1800)  # Max 30 min
+        if _time.time() - last_fail_time < backoff_seconds:
+            return True
+        return False
+
+    def _record_job_failure(self, job_id: int):
+        """Record a job task failure for backoff tracking."""
+        if job_id in self._job_failures:
+            count, _ = self._job_failures[job_id]
+            self._job_failures[job_id] = (count + 1, _time.time())
+        else:
+            self._job_failures[job_id] = (1, _time.time())
+
+    def _record_job_success(self, job_id: int):
+        """Reset job failure counter on success."""
+        self._job_failures.pop(job_id, None)
 
     def _is_keyword_rate_limited(self, session_id: str) -> bool:
         """Check if client has exceeded keyword_seo rate limit (per hour).
@@ -169,6 +196,10 @@ class JobDispatcher:
 
                     # Skip jobs already assigned this cycle (avoid duplicate)
                     if job.id in assigned_job_ids:
+                        continue
+
+                    # Skip jobs in failure backoff (too many consecutive failures)
+                    if self._is_job_in_backoff(job.id):
                         continue
 
                     # Check daily limit
@@ -313,20 +344,65 @@ class JobDispatcher:
                     (task.completed_at - task.started_at).total_seconds()
                 )
 
-            # Update job progress
+            # Check if task actually succeeded
+            task_success = True
+            fail_reason = ""
+
+            # 1. Có lỗi trong result
+            if result_data.get("error"):
+                task_success = False
+                fail_reason = f"error: {result_data['error']}"
+
+            # 2. Backlink: phải click được backlink
+            if result_data.get("backlink_clicked") is False:
+                task_success = False
+                fail_reason = f"backlink not clicked: {result_data.get('click_method', 'none')}"
+
+            # 3. Keyword SEO: phải tìm thấy và click được target
+            if result_data.get("clicked") is False:
+                task_success = False
+                fail_reason = f"keyword target not found: {result_data.get('keyword', '')}"
+
+            # 4. Không visit được trang nào (pages_visited=0)
+            if result_data.get("pages_visited") == 0 and "pages_visited" in result_data:
+                task_success = False
+                fail_reason = fail_reason or "pages_visited=0"
+
+            # 5. Thời gian quá ngắn (< 5 giây) - task bất thường
+            total_time = result_data.get("total_time") or result_data.get("time_on_site") or 0
+            if total_time < 5 and total_time > 0:
+                task_success = False
+                fail_reason = fail_reason or f"too fast: {total_time}s"
+
+            if not task_success:
+                logger.warning(
+                    f"Task #{task_id} failed validation: {fail_reason}"
+                )
+
+            # Update job progress (only if task actually succeeded)
             job = await db.get(Job, task.job_id)
-            if job:
+            if job and task_success:
                 job.completed_count += 1
                 job.today_count += 1
                 job.credit_spent += job.credit_per_view
+                self._record_job_success(job.id)
 
                 # Check if job is completed
                 if job.completed_count >= job.target_count:
                     job.status = JobStatus.COMPLETED
                     logger.info(f"Job #{job.id} '{job.title}' hoàn thành!")
+            elif job and not task_success:
+                # Mark task as failed instead
+                task.status = TaskStatus.FAILED
+                task.error_message = result_data.get("error", "Task did not complete successfully")
+                self._record_job_failure(job.id)
+                logger.info(
+                    f"Job #{job.id} failure recorded "
+                    f"(count={self._job_failures.get(job.id, (0,0))[0]})"
+                )
 
-            # Deduct credits from job owner (SPEND)
-            if job:
+            # Deduct credits from job owner (SPEND) - only if task succeeded
+            if job and task_success:
                 job_owner = await db.get(User, job.user_id)
                 if job_owner:
                     deduct = job.credit_per_view
@@ -366,8 +442,8 @@ class JobDispatcher:
                             },
                         })
 
-            # Credit the worker (EARN)
-            if task.assigned_to:
+            # Credit the worker (EARN) - only if task succeeded
+            if task.assigned_to and task_success:
                 worker = await db.get(User, task.assigned_to)
                 if worker and job:
                     # Apply tier multiplier
@@ -531,6 +607,11 @@ class JobDispatcher:
                     task.client_session_id = None
 
             task.completed_at = datetime.now(timezone.utc)
+
+            # Track job failure for backoff
+            if task.status == TaskStatus.FAILED:
+                self._record_job_failure(task.job_id)
+
             await db.commit()
 
         if client:

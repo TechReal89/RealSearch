@@ -105,6 +105,7 @@ async def init_browser() -> Browser:
         "--deny-permission-prompts",
         "--disable-notifications",
         "--disable-translate",
+        "--ignore-certificate-errors",
     ]
 
     # Headed hidden: đẩy cửa sổ ra ngoài màn hình + tắt âm thanh
@@ -244,6 +245,7 @@ async def create_context(proxy: dict | None = None) -> BrowserContext:
         "locale": "vi-VN",
         "timezone_id": "Asia/Ho_Chi_Minh",
         "java_script_enabled": True,
+        "ignore_https_errors": True,  # Bỏ qua lỗi SSL cert hết hạn/không hợp lệ
         # Grant geolocation with fake coords to prevent Google location popup
         "geolocation": {"latitude": 21.0285, "longitude": 105.8542},  # Hanoi
         "permissions": ["geolocation"],
