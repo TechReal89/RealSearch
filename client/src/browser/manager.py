@@ -214,22 +214,16 @@ def _build_stealth_script(fp: Fingerprint) -> str:
             Object.defineProperty(navigator.connection, 'effectiveType', {{get: () => '4g'}});
         }}
 
-        // Permissions - deny geolocation, notifications
+        // Permissions - grant geolocation (context provides fake coords), deny notifications
         const originalQuery = window.navigator.permissions.query;
         window.navigator.permissions.query = (parameters) => {{
-            if (parameters.name === 'geolocation' || parameters.name === 'notifications') {{
+            if (parameters.name === 'geolocation') {{
+                return Promise.resolve({{state: 'granted', onchange: null}});
+            }}
+            if (parameters.name === 'notifications') {{
                 return Promise.resolve({{state: 'denied', onchange: null}});
             }}
             return originalQuery(parameters);
-        }};
-
-        // Block geolocation API
-        navigator.geolocation.getCurrentPosition = (s, e) => {{
-            if (e) e({{code: 1, message: 'User denied Geolocation'}});
-        }};
-        navigator.geolocation.watchPosition = (s, e) => {{
-            if (e) e({{code: 1, message: 'User denied Geolocation'}});
-            return 0;
         }};
     """
 
