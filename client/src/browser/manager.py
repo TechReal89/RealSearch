@@ -1,6 +1,7 @@
 """Browser lifecycle + stealth management."""
 import asyncio
 import os
+import random
 import subprocess
 import sys
 
@@ -9,6 +10,30 @@ from playwright.async_api import async_playwright, Browser, BrowserContext, Page
 from src.browser.fingerprint import Fingerprint, generate_fingerprint
 from src.config import config, APP_DIR
 from src.utils.logger import log
+
+# Pool tọa độ các thành phố lớn VN (lat, lon, tên)
+_GEO_LOCATIONS = [
+    (21.0285, 105.8542, "Hà Nội"),
+    (21.0340, 105.8500, "Hà Nội - Hoàn Kiếm"),
+    (21.0130, 105.8201, "Hà Nội - Thanh Xuân"),
+    (21.0475, 105.7835, "Hà Nội - Cầu Giấy"),
+    (10.8231, 106.6297, "TP.HCM"),
+    (10.7769, 106.7009, "TP.HCM - Q1"),
+    (10.8020, 106.6520, "TP.HCM - Tân Bình"),
+    (10.7505, 106.6225, "TP.HCM - Q7"),
+    (16.0544, 108.2022, "Đà Nẵng"),
+    (16.0680, 108.2120, "Đà Nẵng - Hải Châu"),
+    (20.8449, 106.6881, "Hải Phòng"),
+    (10.0452, 105.7469, "Cần Thơ"),
+    (12.2388, 109.1967, "Nha Trang"),
+    (11.9404, 108.4583, "Đà Lạt"),
+    (21.1781, 106.0650, "Bắc Ninh"),
+    (20.9372, 106.3141, "Hải Dương"),
+    (10.3600, 106.3600, "Vũng Tàu"),
+    (21.5852, 105.8214, "Thái Nguyên"),
+    (18.6790, 105.6813, "Vinh"),
+    (16.4637, 107.5909, "Huế"),
+]
 
 _playwright = None
 _browser: Browser | None = None
@@ -228,6 +253,16 @@ def _build_stealth_script(fp: Fingerprint) -> str:
     """
 
 
+def _random_geolocation() -> dict:
+    """Chọn ngẫu nhiên tọa độ từ pool thành phố VN + thêm jitter nhỏ."""
+    lat, lon, city = random.choice(_GEO_LOCATIONS)
+    # Jitter ±0.005 (~500m) để không trùng chính xác mỗi lần
+    lat += random.uniform(-0.005, 0.005)
+    lon += random.uniform(-0.005, 0.005)
+    log.debug(f"Geolocation: {city} ({lat:.4f}, {lon:.4f})")
+    return {"latitude": round(lat, 4), "longitude": round(lon, 4)}
+
+
 async def create_context(proxy: dict | None = None) -> BrowserContext:
     """Tạo browser context với stealth settings và fingerprint ngẫu nhiên."""
     browser = await init_browser()
@@ -240,8 +275,8 @@ async def create_context(proxy: dict | None = None) -> BrowserContext:
         "timezone_id": "Asia/Ho_Chi_Minh",
         "java_script_enabled": True,
         "ignore_https_errors": True,  # Bỏ qua lỗi SSL cert hết hạn/không hợp lệ
-        # Grant geolocation with fake coords to prevent Google location popup
-        "geolocation": {"latitude": 21.0285, "longitude": 105.8542},  # Hanoi
+        # Random geolocation from VN city pool
+        "geolocation": _random_geolocation(),
         "permissions": ["geolocation"],
     }
 
