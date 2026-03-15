@@ -22,8 +22,20 @@ class JobDispatcher:
     def __init__(self):
         self._running = False
         self._dispatch_interval = 5  # seconds
+        self._idle_notify_interval = 60  # notify idle clients every 60s
+        self._last_idle_notify: float = 0
 
     def _calculate_priority_score(self, job: Job, tier_priority: int = 1) -> float:
+        """Calculate priority score for job ranking.
+
+        Higher score = dispatched first. Factors:
+        - job.priority: user-set priority (1-10)
+        - tier_priority: job owner's tier level (1-10)
+        - admin_priority: admin boost (0-10)
+        - credit_per_view: jobs paying more credits are prioritized
+        - completion_ratio: less completed = higher priority
+        - staleness: jobs not processed recently get boosted
+        """
         completion_ratio = (
             job.completed_count / job.target_count if job.target_count > 0 else 0
         )
@@ -35,13 +47,21 @@ class JobDispatcher:
             job.priority * 10
             + tier_priority * 5
             + job.admin_priority * 8
+            + job.credit_per_view * 2       # Prioritize high-paying jobs
             + (1 - completion_ratio) * 30
             + min(hours_since_update * 2, 20)
         )
         return score
 
     async def dispatch_once(self):
-        """Run one dispatch cycle - find active jobs and assign to available clients."""
+        """Run one dispatch cycle - find active jobs and assign to available clients.
+
+        Logic:
+        - ALL clients can execute ALL job types (client = worker, no tier restriction)
+        - Tier restrictions only apply when CREATING jobs (checked in jobs API)
+        - Jobs are ranked by priority score (tier, credits, admin boost, etc.)
+        - Self-view prevention: client cannot execute jobs they own
+        """
         available_clients = manager.get_available_clients()
         if not available_clients:
             return 0
@@ -58,6 +78,7 @@ class JobDispatcher:
                 )
                 .order_by(
                     (Job.admin_priority + Job.priority).desc(),
+                    Job.credit_per_view.desc(),
                     Job.completed_count.asc(),
                 )
                 .limit(50)
@@ -65,6 +86,8 @@ class JobDispatcher:
             active_jobs = result.scalars().all()
 
             if not active_jobs:
+                # Notify idle clients periodically
+                await self._notify_idle_clients("Hiện không có job nào đang hoạt động")
                 return 0
 
             # Score and sort jobs
@@ -79,9 +102,9 @@ class JobDispatcher:
 
             scored_jobs.sort(key=lambda x: x[0], reverse=True)
 
-            # Assign tasks to available clients (multi-task support)
-            # Track which jobs have been assigned this cycle to avoid duplicates
+            # Track which jobs have been assigned this cycle
             assigned_job_ids: set[int] = set()
+            skipped_clients: list[ClientConnection] = []
 
             for client in available_clients:
                 # Calculate available slots for this client
@@ -90,17 +113,14 @@ class JobDispatcher:
                     continue
 
                 assigned_this_client = 0
+                client_had_valid_job = False
 
                 for score, job in scored_jobs:
                     if assigned_this_client >= slots:
                         break
 
-                    # Skip jobs already assigned this cycle
+                    # Skip jobs already assigned this cycle (avoid duplicate)
                     if job.id in assigned_job_ids:
-                        continue
-
-                    # Check if client supports this job type
-                    if job.job_type.value not in client.enabled_job_types:
                         continue
 
                     # Check daily limit
@@ -114,7 +134,7 @@ class JobDispatcher:
                     ):
                         continue
 
-                    # Don't assign same job owner's job to their own client
+                    # SELF-VIEW PREVENTION: Don't assign own job to owner's client
                     if job.user_id == client.user_id:
                         continue
 
@@ -126,6 +146,8 @@ class JobDispatcher:
                             f"({job_owner.credit_balance if job_owner else 0} < {job.credit_per_view})"
                         )
                         continue
+
+                    client_had_valid_job = True
 
                     # Create task
                     task = Task(
@@ -160,18 +182,45 @@ class JobDispatcher:
                         assigned_this_client += 1
                         assigned_job_ids.add(job.id)
                         logger.info(
-                            f"Task #{task.id} (job #{job.id}) assigned to "
-                            f"session {client.session_id} "
-                            f"(slot {assigned_this_client}/{slots})"
+                            f"Task #{task.id} (job #{job.id} {job.job_type.value}) "
+                            f"→ session {client.session_id[:8]} "
+                            f"(slot {assigned_this_client}/{slots}, "
+                            f"score={score:.0f}, credit={job.credit_per_view})"
                         )
                     except Exception as e:
                         task.status = TaskStatus.FAILED
                         task.error_message = f"Send failed: {e}"
-                        logger.warning(f"Failed to send task to {client.session_id}: {e}")
+                        logger.warning(f"Failed to send task to {client.session_id[:8]}: {e}")
+
+                if not client_had_valid_job:
+                    skipped_clients.append(client)
 
             await db.commit()
 
+        # Notify clients that had no valid jobs
+        if skipped_clients and assigned_count == 0:
+            await self._notify_idle_clients(
+                "Đang chờ - chưa có job phù hợp (tất cả job hiện tại do bạn tạo hoặc chủ job hết credit)"
+            )
+
         return assigned_count
+
+    async def _notify_idle_clients(self, message: str):
+        """Send status update to idle clients (rate-limited)."""
+        import time
+        now = time.time()
+        if now - self._last_idle_notify < self._idle_notify_interval:
+            return
+        self._last_idle_notify = now
+
+        for client in manager.get_available_clients():
+            try:
+                await client.send({
+                    "type": "status_update",
+                    "data": {"message": message},
+                })
+            except Exception:
+                pass
 
     async def handle_task_completed(
         self, session_id: str, task_id: int, result_data: dict
@@ -202,6 +251,7 @@ class JobDispatcher:
                 # Check if job is completed
                 if job.completed_count >= job.target_count:
                     job.status = JobStatus.COMPLETED
+                    logger.info(f"Job #{job.id} '{job.title}' hoàn thành!")
 
             # Deduct credits from job owner (SPEND)
             if job:
@@ -227,7 +277,7 @@ class JobDispatcher:
                         f"balance={job_owner.credit_balance}"
                     )
 
-                    # Auto-pause job nếu owner hết credit
+                    # Auto-pause job if owner runs out of credits
                     if job_owner.credit_balance < job.credit_per_view:
                         job.status = JobStatus.PAUSED
                         logger.info(

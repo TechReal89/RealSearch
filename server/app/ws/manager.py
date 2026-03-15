@@ -108,16 +108,13 @@ class ConnectionManager:
         session_ids = self._user_sessions.get(user_id, set())
         return [self._connections[sid] for sid in session_ids if sid in self._connections]
 
-    def get_available_clients(self, job_type: str | None = None) -> list[ClientConnection]:
-        """Get clients that can accept new tasks."""
-        available = []
-        for client in self._connections.values():
-            if not client.is_available:
-                continue
-            if job_type and job_type not in client.enabled_job_types:
-                continue
-            available.append(client)
-        return available
+    def get_available_clients(self) -> list[ClientConnection]:
+        """Get clients that can accept new tasks.
+
+        All connected clients can execute all job types (client = worker).
+        Tier restrictions only apply when creating jobs, not when executing them.
+        """
+        return [c for c in self._connections.values() if c.is_available]
 
     def get_all_clients(self) -> list[ClientConnection]:
         return list(self._connections.values())

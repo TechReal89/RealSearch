@@ -27,14 +27,15 @@ def get_icon_path() -> str | None:
 
 
 def get_version() -> str:
-    """Đọc version từ file VERSION."""
+    """Đọc version từ file VERSION (strip 'v' prefix nếu có)."""
     # Khi đóng gói PyInstaller, file nằm ở _MEIPASS root
     if getattr(sys, 'frozen', False):
         version_file = Path(sys._MEIPASS) / "VERSION"  # type: ignore
     else:
         version_file = Path(__file__).parent / "VERSION"
     if version_file.exists():
-        return version_file.read_text().strip()
+        ver = version_file.read_text().strip()
+        return ver.lstrip("v")
     return "0.0.1-dev"
 
 

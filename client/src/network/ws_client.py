@@ -15,6 +15,7 @@ _on_task_assign = None
 _on_credit_update = None
 _on_broadcast = None
 _on_status_change = None
+_on_status_update = None
 
 
 def set_callbacks(
@@ -22,12 +23,14 @@ def set_callbacks(
     on_credit_update=None,
     on_broadcast=None,
     on_status_change=None,
+    on_status_update=None,
 ):
-    global _on_task_assign, _on_credit_update, _on_broadcast, _on_status_change
+    global _on_task_assign, _on_credit_update, _on_broadcast, _on_status_change, _on_status_update
     _on_task_assign = on_task_assign
     _on_credit_update = on_credit_update
     _on_broadcast = on_broadcast
     _on_status_change = on_status_change
+    _on_status_update = on_status_update
 
 
 class WSClient:
@@ -59,7 +62,8 @@ class WSClient:
             try:
                 await self._do_connect()
             except Exception as e:
-                log.warning(f"WebSocket lỗi: {e}")
+                if self._running:
+                    log.warning(f"WebSocket lỗi: {e}")
 
             if not self._running:
                 break
@@ -68,21 +72,24 @@ class WSClient:
             if _on_status_change:
                 _on_status_change("disconnected")
 
-            log.info(f"Kết nối lại sau {self._reconnect_delay}s...")
+            log.info(f"Kết nối lại sau {int(self._reconnect_delay)}s...")
             await asyncio.sleep(self._reconnect_delay)
             self._reconnect_delay = min(self._reconnect_delay * 1.5, 60)
 
     async def _do_connect(self):
-        # Refresh token trước khi kết nối để tránh Invalid token
+        # Refresh token trước khi kết nối
         if api._refresh_token:
-            await api._do_refresh()
+            try:
+                await api._do_refresh()
+            except Exception as e:
+                log.warning(f"Token refresh thất bại: {e}")
 
         log.info(f"Đang kết nối {config.ws_url}...")
 
         async with websockets.connect(
             config.ws_url,
             ping_interval=20,
-            ping_timeout=10,
+            ping_timeout=30,  # Increased from 10 to avoid false disconnects
             max_size=1024 * 1024,
         ) as ws:
             self._ws = ws
@@ -140,7 +147,7 @@ class WSClient:
                 await _on_task_assign(data)
 
         elif msg_type == "credit_update":
-            log.info(f"Credit +{data.get('earned', 0)} → {data.get('balance', 0)}")
+            log.info(f"Credit +{data.get('earned', 0)} → {data.get('balance', 0):,}")
             if _on_credit_update:
                 _on_credit_update(data)
 
@@ -148,6 +155,11 @@ class WSClient:
             log.info(f"[Broadcast] {data.get('message', '')}")
             if _on_broadcast:
                 _on_broadcast(data)
+
+        elif msg_type == "status_update":
+            # Server notifies about job availability
+            if _on_status_update:
+                _on_status_update(data)
 
         elif msg_type == "error":
             log.error(f"Server error: {data.get('message', '')}")
@@ -165,12 +177,17 @@ class WSClient:
                 })
             except asyncio.CancelledError:
                 break
-            except Exception:
+            except Exception as e:
+                log.warning(f"Heartbeat lỗi: {e}")
                 break
 
     async def send(self, msg_type: str, data: dict):
         if self._ws and self._connected:
-            await self._ws.send(json.dumps({"type": msg_type, "data": data}))
+            try:
+                await self._ws.send(json.dumps({"type": msg_type, "data": data}))
+            except Exception as e:
+                log.warning(f"Send lỗi: {e}")
+                raise
 
     async def send_task_completed(self, task_id: int, result: dict):
         await self.send("task_completed", {"task_id": task_id, "result": result})

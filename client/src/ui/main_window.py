@@ -543,6 +543,7 @@ class MainWindow:
             on_credit_update=self._on_credit_update,
             on_broadcast=self._on_broadcast,
             on_status_change=self._on_status_change,
+            on_status_update=self._on_status_update,
         )
 
     def _append_log(self, msg: str):
@@ -588,6 +589,16 @@ class MainWindow:
     def _on_broadcast(self, data: dict):
         log.info(f"📢 {data.get('message', '')}")
 
+    def _on_status_update(self, data: dict):
+        """Server thông báo trạng thái (vd: không có job phù hợp)."""
+        message = data.get("message", "")
+        def _do():
+            self.lbl_status.config(
+                text=f"🟡  {message}",
+                fg=COLORS["yellow"]
+            )
+        self.root.after(0, _do)
+
     async def _on_task_assign(self, task_data: dict):
         """Nhận và thực thi task (hỗ trợ multi-task song song)."""
         task_id = task_data["task_id"]
@@ -612,6 +623,12 @@ class MainWindow:
         await ws_client.send_task_accepted(task_id)
         self._active_tasks.add(task_id)
 
+        # Update status to show active task
+        self.root.after(0, lambda: self.lbl_status.config(
+            text=f"🟢  Đang thực thi {len(self._active_tasks)} task",
+            fg=COLORS["green"]
+        ))
+
         # Chạy task trong asyncio.Task riêng để không block WS loop
         asyncio.create_task(self._execute_task(task_id, executor, task_data))
 
@@ -628,9 +645,16 @@ class MainWindow:
         finally:
             self._active_tasks.discard(task_id)
 
-        self.root.after(0, lambda: self.lbl_tasks.config(
-            text=f"✅ {self.tasks_completed}  ❌ {self.tasks_failed}"
-        ))
+        def _update_ui():
+            self.lbl_tasks.config(
+                text=f"✅ {self.tasks_completed}  ❌ {self.tasks_failed}"
+            )
+            if not self._active_tasks and ws_client.is_connected:
+                self.lbl_status.config(
+                    text="🟢  Đã kết nối - Đang chờ task",
+                    fg=COLORS["green"]
+                )
+        self.root.after(0, _update_ui)
 
     def _start(self):
         """Bắt đầu kết nối và nhận task."""
