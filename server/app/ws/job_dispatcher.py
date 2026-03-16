@@ -374,6 +374,18 @@ class JobDispatcher:
                 task_success = False
                 fail_reason = fail_reason or f"too fast: {total_time}s"
 
+            # 6. Social media: watch_time phải đạt tối thiểu 50% min_watch_time
+            if job and job.job_type == "social_media" and task_success:
+                watch_time = result_data.get("watch_time", 0)
+                cfg = job.config or {}
+                min_expected = cfg.get("min_watch_time", 15)
+                if watch_time < min_expected * 0.5:
+                    task_success = False
+                    fail_reason = (
+                        f"social watch_time too short: {watch_time}s "
+                        f"< {min_expected * 0.5}s"
+                    )
+
             if not task_success:
                 logger.warning(
                     f"Task #{task_id} failed validation: {fail_reason}"

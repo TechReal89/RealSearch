@@ -148,3 +148,30 @@ async def click_internal_links(page, max_clicks=3):
         pass
 
     return clicked
+
+
+async def hover_element_area(page, selector: str, duration: float = 1.0):
+    """Hover over an element area naturally: move mouse in, micro-jitter, move out."""
+    try:
+        el = page.locator(selector)
+        if await el.count() == 0:
+            return
+        box = await el.first.bounding_box()
+        if not box:
+            return
+
+        # Move to random point within element
+        target_x = int(box["x"] + random.uniform(0.2, 0.8) * box["width"])
+        target_y = int(box["y"] + random.uniform(0.2, 0.8) * box["height"])
+        await human_mouse_move(page, target_x, target_y)
+
+        # Micro movements while hovering
+        await micro_movements(page, duration)
+
+        # Move away to random position
+        viewport = await page.evaluate("({w: window.innerWidth, h: window.innerHeight})")
+        away_x = random.randint(100, viewport["w"] - 100)
+        away_y = random.randint(100, viewport["h"] - 100)
+        await human_mouse_move(page, away_x, away_y)
+    except Exception:
+        pass
