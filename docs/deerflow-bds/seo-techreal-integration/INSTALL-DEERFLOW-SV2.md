@@ -20,20 +20,22 @@ sudo su - deerflow
 ```bash
 git clone https://github.com/bytedance/deer-flow.git
 cd deer-flow
-make setup          # wizard: chọn LLM backend (Claude Code OAuth / OpenAI-compatible), nhập key
+make setup          # wizard: chon LLM provider + web search + safety -> sinh config.yaml & .env
+make doctor         # kiem tra cau hinh, goi y fix neu thieu
 ```
-Trong wizard / file cấu hình:
-- **Model backend**: Claude Code OAuth, hoặc OpenAI-compatible (Doubao/DeepSeek/Kimi/OpenRouter...).
-- **Bind address**: đặt Gateway nghe **IP private của sv2** (vd `10.10.0.2`), KHÔNG `0.0.0.0`.
+Trong wizard:
+- **Model provider**: Anthropic Claude qua CLI (Claude Code OAuth), hoặc OpenAI-compatible (Doubao/DeepSeek/Kimi/OpenRouter/vLLM...).
+- API key ghi vào `.env` (vd `OPENAI_API_KEY`, `TAVILY_API_KEY` cho web search).
+- **QUAN TRỌNG**: Gateway mặc định bind `localhost:2026`. **GIỮ NGUYÊN loopback** — KHÔNG đổi sang `0.0.0.0`. Việc cho sv1 truy cập sẽ qua nginx (mục 6), không expose Gateway trực tiếp.
 
 ## 3. Khởi chạy
 ```bash
 make docker-init    # lần đầu: kéo image sandbox
-make docker-start   # dev (hot reload)   —— hoặc:  make up  (production)
+make docker-start   # dev (hot reload)   —— hoặc:  make up  (production), dừng: make down
 ```
-Kiểm tra Gateway chỉ nghe private IP:
+Truy cập thử ngay trên sv2: `http://localhost:2026`. Kiểm tra Gateway CHỈ nghe loopback:
 ```bash
-ss -tlnp | grep -E 'LISTEN'      # cổng Gateway phải gắn 10.10.0.2, KHÔNG phải 0.0.0.0
+ss -tlnp | grep 2026      # phải là 127.0.0.1:2026, KHÔNG phải 0.0.0.0:2026
 ```
 
 ## 4. Nạp skills SEO
@@ -47,9 +49,9 @@ cp listing-description.skill.md seo-article.skill.md \
 
 ## 5. Khóa mạng (BẮT BUỘC)
 ```bash
-# Firewall: chỉ cho sv1 (vd 10.10.0.1) gọi cổng Gateway (vd 8080), chặn còn lại
+# Gateway giữ ở loopback 127.0.0.1:2026. Chỉ mở cổng nginx (8443) cho IP sv1.
 sudo ufw default deny incoming
-sudo ufw allow from 10.10.0.1 to any port 8080 proto tcp
+sudo ufw allow from 10.10.0.1 to any port 8443 proto tcp   # sv1 -> nginx proxy
 sudo ufw allow 22/tcp          # ssh (siết theo IP admin nếu được)
 sudo ufw enable
 ```
@@ -69,7 +71,7 @@ server {
     listen 10.10.0.2:8443;
     location / {
         if ($http_authorization != "Bearer ĐẶT_TOKEN_DÀI_NGẪU_NHIÊN") { return 401; }
-        proxy_pass http://127.0.0.1:8080;   # Gateway thật chạy loopback, nginx mới expose private
+        proxy_pass http://127.0.0.1:2026;   # Gateway thật chạy loopback, nginx mới expose private
         proxy_http_version 1.1;
         proxy_set_header Connection "";      # giữ stream/SSE
         proxy_read_timeout 3600s;            # task chạy lâu
