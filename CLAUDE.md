@@ -2036,3 +2036,11 @@ Tuan 10:
 - [ ] Mau that 1 tin dang tu skill mo ta (can user dua thong so 1 BDS).
 - [ ] Script cau noi DeerFlow output -> API dang tin san + POST /jobs RealSearch (can thong tin API san + RealSearch).
 - [ ] Verify volume/difficulty keyword bang Google Search Console + Keyword Planner (hien chi la uoc luong dinh tinh).
+
+### 17.6. DU AN seo.techreal.vn (phan mem SEO) + tich hop DeerFlow
+- User dang build **seo.techreal.vn** (phan mem SEO, push GitHub rieng, domain da tro, CHUA golive). Build tren **sv1**. BE chua chot stack (da khuyen Python/FastAPI cho dong bo voi RealSearch).
+- DeerFlow dong 3 vai tro: **sinh content/bai SEO, research keyword & doi thu, bao cao & phan tich**.
+- **Topology**: DeerFlow chay **may rieng sv2** (cung mang private voi sv1, tranh qua tai sv1 + co lap bao mat). Gateway bind IP private, KHONG public; firewall chi cho sv1; token auth; WireGuard neu khac datacenter.
+- Mo hinh: **async job** - BE tao job -> worker goi DeerFlow Gateway (run-based) -> poll JSON -> ghi DB -> (tuy chon) day sang RealSearch POST /jobs.
+- San pham da lam (xem docs/deerflow-bds/seo-techreal-integration/): ARCHITECTURE.md, INSTALL-DEERFLOW-SV2.md, skills/seo-report.skill.md, be-skeleton/ (FastAPI: api.py + worker.py + deerflow_client.py).
+- TODO: doi chieu endpoint Gateway DeerFlow that; thay JOBS dict bang PostgreSQL+Redis/arq; script cau noi sang RealSearch.
