@@ -647,6 +647,13 @@ class JobDispatcher:
 
         if client:
             client.active_tasks.discard(task_id)
+            # Cooldown: don't send new tasks for 30s after browser_busy rejection
+            if reason == "browser_busy":
+                from datetime import timedelta
+                client.reject_cooldown_until = datetime.now(timezone.utc) + timedelta(seconds=30)
+                logger.info(
+                    f"Client {session_id[:8]} busy, cooldown 30s"
+                )
 
     async def start_dispatch_loop(self):
         """Background loop that continuously dispatches tasks."""

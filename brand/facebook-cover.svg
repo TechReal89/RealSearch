@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1640 624" width="1640" height="624">
+  <defs>
+    <linearGradient id="bgGradFB" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#09090d" />
+      <stop offset="40%" style="stop-color:#0d0d15" />
+      <stop offset="100%" style="stop-color:#12121e" />
+    </linearGradient>
+    <linearGradient id="goldFB" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f5d77a" />
+      <stop offset="50%" style="stop-color:#d4a84b" />
+      <stop offset="100%" style="stop-color:#b8860b" />
+    </linearGradient>
+    <linearGradient id="goldFBvert" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#d4a84b;stop-opacity:0.15" />
+      <stop offset="100%" style="stop-color:#d4a84b;stop-opacity:0" />
+    </linearGradient>
+    <filter id="glowFB">
+      <feGaussianBlur stdDeviation="4" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="bigGlow">
+      <feGaussianBlur stdDeviation="20" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#d4a84b" stroke-width="0.3" opacity="0.08" />
+    </pattern>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1640" height="624" fill="url(#bgGradFB)" />
+  <rect width="1640" height="624" fill="url(#grid)" />
+
+  <!-- Decorative glow orbs -->
+  <circle cx="300" cy="312" r="200" fill="#d4a84b" opacity="0.03" filter="url(#bigGlow)" />
+  <circle cx="1300" cy="312" r="250" fill="#d4a84b" opacity="0.02" filter="url(#bigGlow)" />
+
+  <!-- Top gold line -->
+  <rect x="0" y="0" width="1640" height="3" fill="url(#goldFB)" />
+
+  <!-- Left section: Logo + Brand -->
+  <!-- Logo icon -->
+  <rect x="80" y="180" width="120" height="120" rx="24" fill="#0d0d15" stroke="url(#goldFB)" stroke-width="2.5" />
+  <circle cx="132" cy="228" r="30" fill="none" stroke="url(#goldFB)" stroke-width="4.5" filter="url(#glowFB)" />
+  <line x1="155" y1="252" x2="178" y2="275" stroke="url(#goldFB)" stroke-width="6" stroke-linecap="round" />
+  <rect x="112" y="238" width="7" height="15" rx="2" fill="#d4a84b" opacity="0.7" />
+  <rect x="123" y="228" width="7" height="25" rx="2" fill="url(#goldFB)" />
+  <rect x="134" y="222" width="7" height="31" rx="2" fill="#d4a84b" opacity="0.8" />
+  <rect x="145" y="232" width="7" height="21" rx="2" fill="#d4a84b" opacity="0.6" />
+  <path d="M123 218 L132 207 L141 218" fill="none" stroke="#f5d77a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Brand text -->
+  <text x="230" y="238" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="58" fill="url(#goldFB)" letter-spacing="4">SEO</text>
+  <text x="382" y="238" font-family="'Segoe UI', Arial, sans-serif" font-weight="300" font-size="58" fill="#f5f0e8" letter-spacing="2">Tools</text>
+  <text x="230" y="268" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="16" fill="#8a8999" letter-spacing="4">NỀN TẢNG TỰ ĐỘNG HÓA TRAFFIC</text>
+
+  <!-- Center divider -->
+  <line x1="620" y1="140" x2="620" y2="484" stroke="#d4a84b" stroke-width="1" opacity="0.2" />
+
+  <!-- Right section: Features -->
+  <text x="680" y="195" font-family="'Segoe UI', Arial, sans-serif" font-weight="700" font-size="28" fill="#f5f0e8">Tăng traffic website</text>
+  <text x="680" y="240" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="50" fill="url(#goldFB)">gấp 10 lần</text>
+
+  <!-- Feature pills -->
+  <rect x="680" y="270" width="200" height="38" rx="19" fill="#d4a84b" fill-opacity="0.1" stroke="#d4a84b" stroke-width="1" stroke-opacity="0.3" />
+  <text x="695" y="295" font-family="'Segoe UI', Arial, sans-serif" font-weight="600" font-size="14" fill="#d4a84b">Tự động xem link</text>
+
+  <rect x="895" y="270" width="220" height="38" rx="19" fill="#d4a84b" fill-opacity="0.1" stroke="#d4a84b" stroke-width="1" stroke-opacity="0.3" />
+  <text x="910" y="295" font-family="'Segoe UI', Arial, sans-serif" font-weight="600" font-size="14" fill="#d4a84b">SEO từ khóa Google</text>
+
+  <rect x="1130" y="270" width="200" height="38" rx="19" fill="#d4a84b" fill-opacity="0.1" stroke="#d4a84b" stroke-width="1" stroke-opacity="0.3" />
+  <text x="1145" y="295" font-family="'Segoe UI', Arial, sans-serif" font-weight="600" font-size="14" fill="#d4a84b">Traffic Backlink</text>
+
+  <rect x="680" y="320" width="220" height="38" rx="19" fill="#d4a84b" fill-opacity="0.1" stroke="#d4a84b" stroke-width="1" stroke-opacity="0.3" />
+  <text x="695" y="345" font-family="'Segoe UI', Arial, sans-serif" font-weight="600" font-size="14" fill="#d4a84b">Lượt xem mạng xã hội</text>
+
+  <rect x="915" y="320" width="260" height="38" rx="19" fill="#d4a84b" fill-opacity="0.1" stroke="#d4a84b" stroke-width="1" stroke-opacity="0.3" />
+  <text x="930" y="345" font-family="'Segoe UI', Arial, sans-serif" font-weight="600" font-size="14" fill="#d4a84b">99% Giống người thật</text>
+
+  <!-- Stats row -->
+  <text x="680" y="420" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="36" fill="url(#goldFB)">500+</text>
+  <text x="680" y="445" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="14" fill="#8a8999">Clients đồng thời</text>
+
+  <text x="880" y="420" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="36" fill="url(#goldFB)">20+</text>
+  <text x="880" y="445" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="14" fill="#8a8999">Thành phố VN</text>
+
+  <text x="1060" y="420" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="36" fill="url(#goldFB)">99%</text>
+  <text x="1060" y="445" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="14" fill="#8a8999">Chống phát hiện</text>
+
+  <text x="1280" y="420" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="36" fill="url(#goldFB)">24/7</text>
+  <text x="1280" y="445" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="14" fill="#8a8999">Tự động hoàn toàn</text>
+
+  <!-- Bottom line -->
+  <rect x="680" y="480" width="860" height="1" fill="url(#goldFB)" opacity="0.3" />
+
+  <!-- Website -->
+  <text x="680" y="510" font-family="'Segoe UI', Arial, sans-serif" font-weight="600" font-size="18" fill="#d4a84b">seo.toolsx.vn</text>
+  <text x="900" y="510" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="16" fill="#8a8999">|  Miễn phí sử dụng  |  Tăng traffic thật  |  Kiếm credit tự động</text>
+
+  <!-- Bottom gold line -->
+  <rect x="0" y="621" width="1640" height="3" fill="url(#goldFB)" />
+</svg>

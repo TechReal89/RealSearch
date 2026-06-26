@@ -52,10 +52,10 @@ export default function NewsPage() {
             </div>
           </div>
           <h2 className="text-3xl font-bold text-[#f5f0e8]">
-            <span className="gold-shimmer">Tin tuc</span>
+            <span className="gold-shimmer">Tin tức</span>
           </h2>
           <p className="text-[#8a8999] mt-2 max-w-md mx-auto">
-            Cap nhat tin tuc moi nhat tu RealSearch
+            Cập nhật tin tức mới nhất từ RealSearch
           </p>
           <div className="ornament-line mt-5 max-w-xs mx-auto" />
         </div>
@@ -74,8 +74,8 @@ export default function NewsPage() {
         {!loading && (!data || !data.articles || data.articles.length === 0) && (
           <div className="luxury-card rounded-xl p-12 text-center">
             <Newspaper className="w-12 h-12 text-[#555] mx-auto mb-4" />
-            <p className="text-[#8a8999] text-lg">Chua co tin tuc nao</p>
-            <p className="text-[#555] text-sm mt-1">Cac tin tuc se som duoc cap nhat</p>
+            <p className="text-[#8a8999] text-lg">Chưa có tin tức nào</p>
+            <p className="text-[#555] text-sm mt-1">Các tin tức sẽ sớm được cập nhật</p>
           </div>
         )}
 
@@ -122,7 +122,7 @@ export default function NewsPage() {
                         </span>
                       </div>
                       <div className="flex items-center gap-1 text-[#d4a84b] opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider">Doc</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider">Đọc</span>
                         <ArrowRight className="w-3 h-3" />
                       </div>
                     </div>

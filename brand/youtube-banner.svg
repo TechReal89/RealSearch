@@ -1,0 +1,123 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2560 1440" width="2560" height="1440">
+  <defs>
+    <linearGradient id="bgGradYT" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#09090d" />
+      <stop offset="30%" style="stop-color:#0d0d15" />
+      <stop offset="70%" style="stop-color:#10101a" />
+      <stop offset="100%" style="stop-color:#09090d" />
+    </linearGradient>
+    <linearGradient id="goldYT" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f5d77a" />
+      <stop offset="50%" style="stop-color:#d4a84b" />
+      <stop offset="100%" style="stop-color:#b8860b" />
+    </linearGradient>
+    <filter id="glowYT">
+      <feGaussianBlur stdDeviation="5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <filter id="bigGlowYT">
+      <feGaussianBlur stdDeviation="40" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+    <pattern id="gridYT" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="#d4a84b" stroke-width="0.3" opacity="0.06" />
+    </pattern>
+    <linearGradient id="fadeLeft" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#09090d;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#09090d;stop-opacity:0" />
+    </linearGradient>
+    <linearGradient id="fadeRight" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#09090d;stop-opacity:0" />
+      <stop offset="100%" style="stop-color:#09090d;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="2560" height="1440" fill="url(#bgGradYT)" />
+  <rect width="2560" height="1440" fill="url(#gridYT)" />
+
+  <!-- Glow orbs -->
+  <circle cx="1280" cy="720" r="400" fill="#d4a84b" opacity="0.03" filter="url(#bigGlowYT)" />
+  <circle cx="500" cy="500" r="300" fill="#d4a84b" opacity="0.02" filter="url(#bigGlowYT)" />
+  <circle cx="2000" cy="900" r="300" fill="#d4a84b" opacity="0.02" filter="url(#bigGlowYT)" />
+
+  <!-- Top accent line -->
+  <rect x="0" y="0" width="2560" height="4" fill="url(#goldYT)" />
+
+  <!-- Safe area guide (YouTube safe area: 1546x423 centered) -->
+  <!-- Center content within safe area -->
+
+  <!-- Logo icon large -->
+  <rect x="540" y="460" width="180" height="180" rx="36" fill="#0d0d15" stroke="url(#goldYT)" stroke-width="3" />
+  <circle cx="614" cy="530" r="45" fill="none" stroke="url(#goldYT)" stroke-width="6" filter="url(#glowYT)" />
+  <line x1="648" y1="565" x2="684" y2="600" stroke="url(#goldYT)" stroke-width="8" stroke-linecap="round" />
+
+  <!-- Bars in glass -->
+  <rect x="586" y="544" width="10" height="22" rx="2" fill="#d4a84b" opacity="0.7" />
+  <rect x="600" y="530" width="10" height="36" rx="2" fill="url(#goldYT)" />
+  <rect x="614" y="520" width="10" height="46" rx="2" fill="#d4a84b" opacity="0.8" />
+  <rect x="628" y="534" width="10" height="32" rx="2" fill="#d4a84b" opacity="0.6" />
+
+  <!-- Arrow -->
+  <path d="M600 515 L614 498 L628 515" fill="none" stroke="#f5d77a" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Brand name -->
+  <text x="760" y="555" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="90" fill="url(#goldYT)" letter-spacing="6">SEO</text>
+  <text x="1085" y="555" font-family="'Segoe UI', Arial, sans-serif" font-weight="300" font-size="90" fill="#f5f0e8" letter-spacing="3">Tools</text>
+
+  <!-- Tagline -->
+  <text x="760" y="600" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="24" fill="#8a8999" letter-spacing="6">NỀN TẢNG TỰ ĐỘNG HÓA TRAFFIC</text>
+
+  <!-- Accent line under tagline -->
+  <rect x="760" y="620" width="100" height="3" rx="1.5" fill="url(#goldYT)" />
+
+  <!-- Features row -->
+  <text x="540" y="730" font-family="'Segoe UI', Arial, sans-serif" font-weight="600" font-size="22" fill="#d4a84b">Tự động xem link</text>
+  <text x="540" y="758" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="16" fill="#6a6979">Tăng pageview, giảm bounce rate</text>
+
+  <rect x="830" y="700" width="1" height="70" fill="#d4a84b" opacity="0.3" />
+
+  <text x="870" y="730" font-family="'Segoe UI', Arial, sans-serif" font-weight="600" font-size="22" fill="#d4a84b">SEO từ khóa</text>
+  <text x="870" y="758" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="16" fill="#6a6979">Tìm kiếm và click tự nhiên trên Google</text>
+
+  <rect x="1220" y="700" width="1" height="70" fill="#d4a84b" opacity="0.3" />
+
+  <text x="1260" y="730" font-family="'Segoe UI', Arial, sans-serif" font-weight="600" font-size="22" fill="#d4a84b">Backlink Traffic</text>
+  <text x="1260" y="758" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="16" fill="#6a6979">Click backlink tự nhiên từ bài viết</text>
+
+  <rect x="1600" y="700" width="1" height="70" fill="#d4a84b" opacity="0.3" />
+
+  <text x="1640" y="730" font-family="'Segoe UI', Arial, sans-serif" font-weight="600" font-size="22" fill="#d4a84b">Mạng xã hội</text>
+  <text x="1640" y="758" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="16" fill="#6a6979">Lượt xem YouTube, TikTok, Facebook</text>
+
+  <!-- Bottom stats bar -->
+  <rect x="0" y="830" width="2560" height="1" fill="url(#goldYT)" opacity="0.2" />
+
+  <text x="640" y="880" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="40" fill="url(#goldYT)" text-anchor="middle">500+</text>
+  <text x="640" y="910" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="16" fill="#6a6979" text-anchor="middle">Clients đồng thời</text>
+
+  <text x="1000" y="880" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="40" fill="url(#goldYT)" text-anchor="middle">99%</text>
+  <text x="1000" y="910" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="16" fill="#6a6979" text-anchor="middle">Hành vi như người thật</text>
+
+  <text x="1360" y="880" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="40" fill="url(#goldYT)" text-anchor="middle">20+</text>
+  <text x="1360" y="910" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="16" fill="#6a6979" text-anchor="middle">Vị trí GPS Việt Nam</text>
+
+  <text x="1720" y="880" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="40" fill="url(#goldYT)" text-anchor="middle">24/7</text>
+  <text x="1720" y="910" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="16" fill="#6a6979" text-anchor="middle">Tự động hoàn toàn</text>
+
+  <!-- Website at bottom -->
+  <text x="1280" y="990" font-family="'Segoe UI', Arial, sans-serif" font-weight="600" font-size="28" fill="#d4a84b" text-anchor="middle" letter-spacing="3">seo.toolsx.vn</text>
+
+  <!-- Bottom accent line -->
+  <rect x="0" y="1436" width="2560" height="4" fill="url(#goldYT)" />
+
+  <!-- Fade edges -->
+  <rect x="0" y="0" width="300" height="1440" fill="url(#fadeLeft)" />
+  <rect x="2260" y="0" width="300" height="1440" fill="url(#fadeRight)" />
+</svg>

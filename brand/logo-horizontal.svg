@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 160" width="600" height="160">
+  <defs>
+    <linearGradient id="goldH" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f5d77a" />
+      <stop offset="50%" style="stop-color:#d4a84b" />
+      <stop offset="100%" style="stop-color:#b8860b" />
+    </linearGradient>
+    <filter id="glowH">
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Icon container -->
+  <rect x="10" y="10" width="140" height="140" rx="28" fill="#0d0d15" stroke="url(#goldH)" stroke-width="2.5" />
+
+  <!-- Magnifying glass -->
+  <circle cx="72" cy="68" r="32" fill="none" stroke="url(#goldH)" stroke-width="5" filter="url(#glowH)" />
+  <line x1="96" y1="92" x2="122" y2="118" stroke="url(#goldH)" stroke-width="7" stroke-linecap="round" />
+
+  <!-- Bars inside glass -->
+  <rect x="52" y="78" width="8" height="16" rx="2" fill="#d4a84b" opacity="0.7" />
+  <rect x="64" y="68" width="8" height="26" rx="2" fill="url(#goldH)" />
+  <rect x="76" y="60" width="8" height="34" rx="2" fill="#d4a84b" opacity="0.8" />
+  <rect x="88" y="72" width="8" height="22" rx="2" fill="#d4a84b" opacity="0.6" />
+
+  <!-- Arrow up -->
+  <path d="M65 55 L75 42 L85 55" fill="none" stroke="#f5d77a" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+
+  <!-- Text -->
+  <text x="185" y="72" font-family="'Segoe UI', Arial, sans-serif" font-weight="900" font-size="52" fill="url(#goldH)" letter-spacing="4">SEO</text>
+  <text x="330" y="72" font-family="'Segoe UI', Arial, sans-serif" font-weight="300" font-size="52" fill="#f5f0e8" letter-spacing="2">Tools</text>
+
+  <!-- Tagline -->
+  <text x="185" y="108" font-family="'Segoe UI', Arial, sans-serif" font-weight="400" font-size="16" fill="#8a8999" letter-spacing="3">NỀN TẢNG TỰ ĐỘNG HÓA TRAFFIC</text>
+
+  <!-- Accent line -->
+  <rect x="185" y="120" width="60" height="2" rx="1" fill="url(#goldH)" />
+</svg>

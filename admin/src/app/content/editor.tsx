@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import {
   Bold, Italic, Underline, Strikethrough, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Heading1, Heading2, Heading3, List, ListOrdered, Link, Image, Quote, Code,
-  Undo, Redo, RemoveFormatting, ArrowLeft, Save, Star, Eye,
+  Undo, Redo, RemoveFormatting, ArrowLeft, Save, Star, Eye, Type, Highlighter,
 } from "lucide-react";
 
 // --- Types ---
@@ -65,6 +65,79 @@ function ToolbarBtn({
 
 function ToolbarSep() {
   return <div className="w-px h-5 bg-[rgba(255,255,255,0.08)] mx-1" />;
+}
+
+const TEXT_COLORS = [
+  { label: "Mặc định", value: "" },
+  { label: "Đỏ", value: "#ef4444" },
+  { label: "Cam", value: "#f97316" },
+  { label: "Vàng", value: "#eab308" },
+  { label: "Xanh lá", value: "#22c55e" },
+  { label: "Xanh dương", value: "#3b82f6" },
+  { label: "Tím", value: "#a855f7" },
+  { label: "Hồng", value: "#ec4899" },
+  { label: "Vàng gold", value: "#d4a84b" },
+  { label: "Trắng", value: "#ffffff" },
+  { label: "Xám", value: "#8a8999" },
+  { label: "Đen", value: "#000000" },
+];
+
+const BG_COLORS = [
+  { label: "Không nền", value: "" },
+  { label: "Vàng nhạt", value: "#fef9c3" },
+  { label: "Xanh nhạt", value: "#dbeafe" },
+  { label: "Xanh lá nhạt", value: "#dcfce7" },
+  { label: "Hồng nhạt", value: "#fce7f3" },
+  { label: "Tím nhạt", value: "#f3e8ff" },
+  { label: "Cam nhạt", value: "#ffedd5" },
+  { label: "Đỏ nhạt", value: "#fee2e2" },
+  { label: "Xám nhạt", value: "#f3f4f6" },
+];
+
+function ColorDropdown({
+  icon: Icon, title, colors, onSelect, type,
+}: {
+  icon: React.ElementType; title: string; colors: { label: string; value: string }[]; onSelect: (color: string) => void; type: "text" | "bg";
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        title={title}
+        onClick={() => setOpen(!open)}
+        className="p-1.5 rounded transition-colors text-[#8a8999] hover:text-[#f5f0e8] hover:bg-[rgba(255,255,255,0.06)]"
+      >
+        <Icon className="w-4 h-4" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute top-full left-0 mt-1 z-50 bg-[#111118] border border-[rgba(212,168,75,0.15)] rounded-lg p-2 shadow-xl min-w-[160px]">
+            <p className="text-[10px] text-[#666] uppercase tracking-wider mb-1.5 px-1">{title}</p>
+            <div className="grid grid-cols-4 gap-1">
+              {colors.map((c) => (
+                <button
+                  key={c.value || "none"}
+                  type="button"
+                  title={c.label}
+                  onClick={() => { onSelect(c.value); setOpen(false); }}
+                  className="w-7 h-7 rounded border border-[rgba(255,255,255,0.1)] hover:border-[#d4a84b] transition-colors flex items-center justify-center"
+                  style={{ backgroundColor: type === "bg" ? (c.value || "transparent") : "transparent" }}
+                >
+                  {type === "text" ? (
+                    <span className="text-xs font-bold" style={{ color: c.value || "#f5f0e8" }}>A</span>
+                  ) : !c.value ? (
+                    <span className="text-[10px] text-[#666]">x</span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
 }
 
 // --- Rich Text Editor ---
@@ -156,6 +229,42 @@ function RichTextEditor({ value, onChange }: { value: string; onChange: (html: s
         <ToolbarBtn icon={Image} title="Chèn hình ảnh" onClick={handleInsertImage} />
         <ToolbarBtn icon={Quote} title="Trích dẫn" onClick={() => formatBlock("blockquote")} />
         <ToolbarBtn icon={Code} title="Khối mã" onClick={() => exec("formatBlock", "pre")} />
+        <ToolbarSep />
+        <ColorDropdown
+          icon={Type}
+          title="Màu chữ"
+          colors={TEXT_COLORS}
+          type="text"
+          onSelect={(color) => {
+            if (color) exec("foreColor", color);
+            else { exec("removeFormat"); }
+          }}
+        />
+        <ColorDropdown
+          icon={Highlighter}
+          title="Tô nền"
+          colors={BG_COLORS}
+          type="bg"
+          onSelect={(color) => {
+            if (color) exec("hiliteColor", color);
+            else exec("removeFormat");
+          }}
+        />
+        <select
+          title="Cỡ chữ"
+          onChange={(e) => { if (e.target.value) exec("fontSize", e.target.value); e.target.value = ""; }}
+          className="h-7 px-1 rounded bg-transparent text-[#8a8999] hover:text-[#f5f0e8] text-xs border-none outline-none cursor-pointer"
+          defaultValue=""
+        >
+          <option value="" disabled>Cỡ chữ</option>
+          <option value="1">Rất nhỏ</option>
+          <option value="2">Nhỏ</option>
+          <option value="3">Bình thường</option>
+          <option value="4">Vừa</option>
+          <option value="5">Lớn</option>
+          <option value="6">Rất lớn</option>
+          <option value="7">Cực lớn</option>
+        </select>
         <ToolbarSep />
         <ToolbarBtn icon={Undo} title="Hoàn tác (Ctrl+Z)" onClick={() => exec("undo")} />
         <ToolbarBtn icon={Redo} title="Làm lại (Ctrl+Y)" onClick={() => exec("redo")} />

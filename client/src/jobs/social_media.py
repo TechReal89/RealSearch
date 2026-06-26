@@ -29,6 +29,8 @@ class SocialMediaExecutor(BaseJobExecutor):
         min_watch = cfg.get("min_watch_time", 30)
         max_watch = cfg.get("max_watch_time", 120)
 
+        self._current_config = cfg
+
         if not target_url:
             raise ValueError("Không có target_url")
 
@@ -87,6 +89,9 @@ class SocialMediaExecutor(BaseJobExecutor):
 
     async def _watch_youtube(self, page, task_id, url, watch_time) -> dict:
         """Xem video YouTube với playback monitoring thực tế."""
+        cfg = self._current_config or {}
+        comment_backlink_url = cfg.get("comment_backlink_url", "")
+
         await page.goto(url, wait_until="domcontentloaded", timeout=30000)
         await human_delay(2.0, 4.0)
 
@@ -143,7 +148,15 @@ class SocialMediaExecutor(BaseJobExecutor):
             f" - '{video_title[:50]}'"
         )
 
-        return {
+        # Comment backlink: scroll to comments and click target link
+        backlink_clicked = False
+        backlink_url_visited = ""
+        if comment_backlink_url:
+            backlink_clicked, backlink_url_visited = await self._click_comment_backlink(
+                page, task_id, comment_backlink_url
+            )
+
+        result = {
             "actual_url_visited": page.url,
             "video_title": video_title,
             "watch_time": int(actual_watched),
@@ -153,6 +166,147 @@ class SocialMediaExecutor(BaseJobExecutor):
             "pages_visited": 1,
             "scroll_depth": 0,
         }
+        if comment_backlink_url:
+            result["backlink_clicked"] = backlink_clicked
+            result["backlink_url_visited"] = backlink_url_visited
+        return result
+
+    # ------------------------------------------------------------------
+    # Comment Backlink (YouTube)
+    # ------------------------------------------------------------------
+
+    async def _click_comment_backlink(self, page, task_id, target_url: str) -> tuple[bool, str]:
+        """Scroll to YouTube comments and click a link matching target_url.
+
+        Returns (clicked: bool, url_visited: str).
+        """
+        from urllib.parse import urlparse
+        target_domain = urlparse(target_url).netloc.replace("www.", "")
+
+        # Configurable time on target page (default 60-180s)
+        cfg = self._current_config or {}
+        min_time_on_target = cfg.get("backlink_min_time_on_target", 60)
+        max_time_on_target = cfg.get("backlink_max_time_on_target", 180)
+
+        log.info(f"[Task #{task_id}] Looking for comment backlink → {target_domain}")
+
+        try:
+            # Scroll down to comments section
+            for _ in range(6):
+                await page.evaluate("window.scrollBy(0, 600)")
+                await human_delay(1.0, 2.0)
+
+            # Wait for comments to load
+            try:
+                await page.wait_for_selector(
+                    "#comments ytd-comment-thread-renderer, #comments ytd-comment-renderer",
+                    timeout=10000,
+                )
+            except Exception:
+                log.warning(f"[Task #{task_id}] Comments section not loaded")
+                return False, ""
+
+            # Click "Read more" on comments to expand them (links often hidden)
+            try:
+                more_buttons = page.locator(
+                    '#comments tp-yt-paper-button#more, '
+                    '#comments [id="more-replies"], '
+                    '#comments .more-button'
+                )
+                count = await more_buttons.count()
+                for i in range(min(count, 5)):
+                    try:
+                        btn = more_buttons.nth(i)
+                        if await btn.is_visible():
+                            await btn.click()
+                            await human_delay(0.5, 1.0)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            await human_delay(1.0, 2.0)
+
+            # Find links in comments that match target domain
+            comment_links = page.locator(
+                f'#comments a[href*="{target_domain}"], '
+                f'#comments a[href*="{target_url}"]'
+            )
+            link_count = await comment_links.count()
+
+            if link_count == 0:
+                # Try expanded comment content links
+                all_comment_links = page.locator("#comments a[href]")
+                total = await all_comment_links.count()
+                for i in range(total):
+                    try:
+                        href = await all_comment_links.nth(i).get_attribute("href")
+                        if href and target_domain in href:
+                            link = all_comment_links.nth(i)
+                            await link.scroll_into_view_if_needed()
+                            await human_delay(0.5, 1.5)
+                            await human_mouse_move(page)
+                            await link.click()
+                            await human_delay(2.0, 4.0)
+
+                            visited = page.url
+                            log.info(
+                                f"[Task #{task_id}] Comment backlink clicked → {visited}"
+                            )
+
+                            # Browse target page naturally
+                            await self._browse_target_page(
+                                page, task_id, min_time_on_target, max_time_on_target
+                            )
+
+                            return True, visited
+                    except Exception:
+                        continue
+                log.info(f"[Task #{task_id}] No comment backlink found for {target_domain}")
+                return False, ""
+
+            # Click the first matching link
+            link = comment_links.first
+            await link.scroll_into_view_if_needed()
+            await human_delay(0.5, 1.5)
+            await human_mouse_move(page)
+            await link.click()
+            await human_delay(2.0, 4.0)
+
+            visited = page.url
+            log.info(f"[Task #{task_id}] Comment backlink clicked → {visited}")
+
+            # Browse target page naturally
+            await self._browse_target_page(
+                page, task_id, min_time_on_target, max_time_on_target
+            )
+
+            return True, visited
+
+        except Exception as e:
+            log.warning(f"[Task #{task_id}] Comment backlink error: {e}")
+            return False, ""
+
+    async def _browse_target_page(self, page, task_id, min_time: int, max_time: int):
+        """Browse the target page naturally for a configurable duration."""
+        browse_time = random.randint(min_time, max_time)
+        log.info(f"[Task #{task_id}] Browsing target page for ~{browse_time}s")
+
+        elapsed = 0
+        while elapsed < browse_time:
+            action_time = random.uniform(5.0, 15.0)
+            roll = random.random()
+
+            if roll < 0.4:
+                await human_scroll(page, "natural")
+            elif roll < 0.6:
+                await human_mouse_move(page)
+            elif roll < 0.75:
+                await micro_movements(page, duration=random.uniform(1.0, 3.0))
+            # else: just idle (reading)
+
+            await human_delay(action_time * 0.8, action_time * 1.2)
+            elapsed += action_time
 
     # ------------------------------------------------------------------
     # YouTube Shorts

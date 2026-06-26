@@ -328,11 +328,19 @@ async def youtube_viewer_interactions(page):
             # Click "Show more" in description
             await _expand_description(page)
 
-        elif roll < 0.75:
+        elif roll < 0.65:
             # Micro movements near player
             await micro_movements(page, duration=random.uniform(1.0, 3.0))
 
-        # else: do nothing (25%) - just watching
+        elif roll < 0.72:
+            # Pause briefly then resume (human checks phone etc.)
+            await _pause_resume(page)
+
+        elif roll < 0.78:
+            # Seek forward a few seconds (skip boring part)
+            await _seek_forward(page)
+
+        # else: do nothing (22%) - just watching
 
     except Exception:
         pass
@@ -395,5 +403,48 @@ async def _expand_description(page):
         if await expand_btn.count() > 0 and await expand_btn.first.is_visible():
             await expand_btn.first.click()
             await human_delay(2.0, 4.0)
+    except Exception:
+        pass
+
+
+async def _pause_resume(page):
+    """Pause the video briefly (2-5s) then resume — simulates human distraction."""
+    try:
+        state = await get_video_state(page)
+        if not state or state.get("paused") or state.get("ended"):
+            return
+
+        # Press K (YouTube pause/play shortcut)
+        await page.keyboard.press("k")
+        await human_delay(2.0, 5.0)
+
+        # Resume
+        state = await get_video_state(page)
+        if state and state.get("paused"):
+            await page.keyboard.press("k")
+            await human_delay(0.3, 0.8)
+    except Exception:
+        pass
+
+
+async def _seek_forward(page):
+    """Seek forward a few seconds — simulates skipping a boring section."""
+    try:
+        state = await get_video_state(page)
+        if not state or state.get("ended"):
+            return
+
+        duration = state.get("duration", 0)
+        current = state.get("currentTime", 0)
+
+        # Don't seek if near the end (last 20%)
+        if duration > 0 and current > duration * 0.8:
+            return
+
+        # Press right arrow (skip +5s) 1-2 times
+        presses = random.choice([1, 1, 2])
+        for _ in range(presses):
+            await page.keyboard.press("ArrowRight")
+            await human_delay(0.2, 0.5)
     except Exception:
         pass

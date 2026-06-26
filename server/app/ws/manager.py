@@ -41,10 +41,17 @@ class ClientConnection:
         self.credits_earned = 0
         self.cpu_usage: float = 0
         self.memory_usage: float = 0
+        self.reject_cooldown_until: datetime | None = None
+        self.client_reported_active: int = 0  # from heartbeat
 
     @property
     def is_available(self) -> bool:
-        return len(self.active_tasks) < self.max_concurrent
+        # Respect cooldown after client rejected task (browser_busy)
+        if self.reject_cooldown_until and datetime.now(timezone.utc) < self.reject_cooldown_until:
+            return False
+        # Use max of server-tracked and client-reported active tasks
+        active = max(len(self.active_tasks), self.client_reported_active)
+        return active < self.max_concurrent
 
     @property
     def active_task_count(self) -> int:
@@ -147,12 +154,17 @@ class ConnectionManager:
         for session_id in disconnected:
             await self.disconnect(session_id)
 
-    def update_heartbeat(self, session_id: str, cpu_usage: float = 0, memory_usage: float = 0):
+    def update_heartbeat(self, session_id: str, cpu_usage: float = 0, memory_usage: float = 0,
+                         active_tasks: int = 0):
         client = self._connections.get(session_id)
         if client:
             client.last_heartbeat = datetime.now(timezone.utc)
             client.cpu_usage = cpu_usage
             client.memory_usage = memory_usage
+            client.client_reported_active = active_tasks
+            # Clear cooldown if client reports 0 active tasks
+            if active_tasks == 0 and client.reject_cooldown_until:
+                client.reject_cooldown_until = None
 
     def get_stats(self) -> dict:
         total = self.online_count

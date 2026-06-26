@@ -633,7 +633,7 @@ DATABASE_URL=postgresql+asyncpg://realsearch:[REDACTED]@db:5432/realsearch
 REDIS_URL=redis://redis:6379/0
 
 # JWT
-JWT_SECRET_KEY=dev-secret-key-change-in-production-abc123xyz
+JWT_SECRET_KEY=__ĐẶT_TRONG_ENV__
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=7
@@ -654,7 +654,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://realsearch:realsearch@db:5432/realsearch"
     REDIS_URL: str = "redis://redis:6379/0"
-    JWT_SECRET_KEY: str = "dev-secret-key-change-in-production"
+    JWT_SECRET_KEY: str = "__ĐẶT_TRONG_ENV__"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -797,7 +797,7 @@ Client                              Server
 ### 4.8. JWT Authentication
 
 - Algorithm: HS256
-- Secret key: `dev-secret-key-change-in-production-abc123xyz`
+- Secret key: `__ĐẶT_TRONG_ENV__`
 - Access token: 30 phut
 - Refresh token: 7 ngay
 - Password hash: bcrypt (passlib)
@@ -1348,7 +1348,7 @@ sudo certbot renew               # Gia han SSL (tu dong qua cron)
 
 | Field       | Value                                           |
 |-------------|--------------------------------------------------|
-| Secret key  | dev-secret-key-change-in-production-abc123xyz    |
+| Secret key  | __ĐẶT_TRONG_ENV__    |
 | Algorithm   | HS256                                            |
 | Access TTL  | 30 phut                                          |
 | Refresh TTL | 7 ngay                                           |
@@ -1422,7 +1422,7 @@ DATABASE_URL=postgresql+asyncpg://realsearch:[REDACTED]@db:5432/realsearch
 REDIS_URL=redis://redis:6379/0
 
 # JWT
-JWT_SECRET_KEY=dev-secret-key-change-in-production-abc123xyz
+JWT_SECRET_KEY=__ĐẶT_TRONG_ENV__
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
 REFRESH_TOKEN_EXPIRE_DAYS=7

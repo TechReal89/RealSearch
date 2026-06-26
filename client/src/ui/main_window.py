@@ -821,13 +821,14 @@ class MainWindow:
         task_id = task_data["task_id"]
         job_type = task_data["job_type"]
 
-        # Reject nếu đã đạt max_concurrent
-        if len(self._active_tasks) >= config.max_concurrent:
+        # Reject nếu đã đạt max_concurrent (server-controlled, tier-based)
+        max_conc = ws_client.max_concurrent
+        if len(self._active_tasks) >= max_conc:
             await ws_client.send("task_rejected", {
                 "task_id": task_id,
                 "reason": "browser_busy",
             })
-            log.info(f"[Task #{task_id}] Từ chối - đang chạy {len(self._active_tasks)} task")
+            log.info(f"[Task #{task_id}] Từ chối - đang chạy {len(self._active_tasks)}/{max_conc} task")
             return
 
         executor = self.executors.get(job_type)
@@ -839,6 +840,7 @@ class MainWindow:
 
         await ws_client.send_task_accepted(task_id)
         self._active_tasks.add(task_id)
+        ws_client._active_tasks_count = len(self._active_tasks)
 
         # Update status to show active task
         self.root.after(0, lambda: self.lbl_status.config(
@@ -861,6 +863,7 @@ class MainWindow:
             self.tasks_failed += 1
         finally:
             self._active_tasks.discard(task_id)
+            ws_client._active_tasks_count = len(self._active_tasks)
 
         def _update_ui():
             self.lbl_tasks.config(

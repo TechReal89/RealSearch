@@ -126,6 +126,7 @@ async def handle_websocket(websocket: WebSocket):
         # Check max clients per user
         existing_sessions = manager.get_user_sessions(user_data["id"])
         max_clients = 3  # default fallback
+        max_concurrent_tasks = 1  # default fallback
         try:
             async with async_session() as tier_db:
                 tier_result = await tier_db.execute(
@@ -136,6 +137,7 @@ async def handle_websocket(websocket: WebSocket):
                 tier_cfg = tier_result.scalar_one_or_none()
                 if tier_cfg:
                     max_clients = tier_cfg.max_clients
+                    max_concurrent_tasks = getattr(tier_cfg, "max_concurrent_tasks", 1) or 1
         except Exception:
             pass  # use default
         if len(existing_sessions) >= max_clients:
@@ -149,7 +151,7 @@ async def handle_websocket(websocket: WebSocket):
             await websocket.close(1008)
             return
 
-        # Create client connection
+        # Create client connection - server overrides max_concurrent based on tier
         client = ClientConnection(
             websocket=websocket,
             user_id=user_data["id"],
@@ -158,7 +160,7 @@ async def handle_websocket(websocket: WebSocket):
             os_info=auth_data.get("os_info"),
             browser_mode=auth_data.get("browser_mode", "headed_hidden"),
             enabled_job_types=auth_data.get("enabled_job_types", ["viewlink"]),
-            max_concurrent=auth_data.get("max_concurrent", 1),
+            max_concurrent=max_concurrent_tasks,
             client_version=auth_data.get("client_version"),
         )
 
@@ -197,6 +199,7 @@ async def handle_websocket(websocket: WebSocket):
                     session_id,
                     msg_data.get("cpu_usage", 0),
                     msg_data.get("memory_usage", 0),
+                    msg_data.get("active_tasks", 0),
                 )
                 await _update_heartbeat_db(session_id)
 

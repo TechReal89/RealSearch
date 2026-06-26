@@ -79,6 +79,8 @@ async def get_job_pricing(
         "tier_max_keywords": tier_config.max_keywords if tier_config else 1,
         "allow_internal_click": tier_config.allow_internal_click if tier_config else False,
         "allow_keyword_seo": tier_config.allow_keyword_seo if tier_config else False,
+        "allow_backlink": tier_config.allow_backlink if tier_config else False,
+        "allow_social_media": tier_config.allow_social_media if tier_config else False,
     }
 
 

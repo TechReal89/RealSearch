@@ -1,4 +1,4 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.realsearch.techreal.vn/api/v1";
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 async function fetchApi(path: string, options: RequestInit = {}) {
   const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;

@@ -1,0 +1,15 @@
+[Unit]
+Description=RealSearch User Website
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/RealSearch/web
+ExecStart=/usr/bin/npx next start -p 3001
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=NEXT_PUBLIC_API_URL=https://api.seo.toolsx.vn/api/v1
+
+[Install]
+WantedBy=multi-user.target

@@ -42,6 +42,8 @@ class WSClient:
         self._connected = False
         self._heartbeat_task: asyncio.Task | None = None
         self._reconnect_delay = 5
+        self._max_concurrent: int = config.max_concurrent
+        self._active_tasks_count: int = 0
 
     @property
     def is_connected(self) -> bool:
@@ -50,6 +52,10 @@ class WSClient:
     @property
     def session_id(self) -> str | None:
         return self._session_id
+
+    @property
+    def max_concurrent(self) -> int:
+        return self._max_concurrent
 
     async def connect(self):
         """Kết nối và xác thực WebSocket."""
@@ -120,6 +126,14 @@ class WSClient:
             self._connected = True
             self._reconnect_delay = 5
 
+            # Apply server-controlled max_concurrent (tier-based)
+            server_max = self._server_config.get("max_concurrent")
+            if server_max and server_max > 0:
+                self._max_concurrent = server_max
+                log.info(f"Server max_concurrent: {server_max}")
+            else:
+                self._max_concurrent = config.max_concurrent
+
             log.info(f"Đã kết nối! Session: {self._session_id[:8]}...")
 
             if _on_status_change:
@@ -173,6 +187,7 @@ class WSClient:
                 await self.send("heartbeat", {
                     "cpu_usage": usage["cpu_usage"],
                     "memory_usage": usage["memory_usage"],
+                    "active_tasks": self._active_tasks_count,
                     "timestamp": time.time(),
                 })
             except asyncio.CancelledError:

@@ -87,7 +87,7 @@ export default function DownloadPage() {
                   { icon: Search, text: "Search keyword trên Google", desc: "Tìm kiếm & click vào kết quả tự nhiên", color: "text-emerald-400", bg: "bg-emerald-500/5", border: "border-emerald-500/10" },
                   { icon: MousePointerClick, text: "Click link nội bộ & tương tác", desc: "Duyệt nhiều trang, tăng session duration", color: "text-blue-400", bg: "bg-blue-500/5", border: "border-blue-500/10" },
                   { icon: Globe, text: "Xem video YouTube, TikTok", desc: "Tăng lượt xem, tương tác mạng xã hội", color: "text-purple-400", bg: "bg-purple-500/5", border: "border-purple-500/10" },
-                  { icon: Link2, text: "Tạo backlink tự động", desc: "Đăng ký directory, forum, comment link", color: "text-cyan-400", bg: "bg-cyan-500/5", border: "border-cyan-500/10" },
+                  { icon: Link2, text: "Tăng traffic backlink", desc: "Đọc bài viết, tìm anchor text, click vào link đích", color: "text-cyan-400", bg: "bg-cyan-500/5", border: "border-cyan-500/10" },
                   { icon: BarChart3, text: "Mọi thứ như người thật", desc: "Chuột Bezier, gõ phím tự nhiên, hành vi ngẫu nhiên", color: "text-orange-400", bg: "bg-orange-500/5", border: "border-orange-500/10" },
                 ].map((feat, i) => (
                   <div key={i} className={`p-3.5 rounded-xl ${feat.bg} border ${feat.border} transition-all hover:border-opacity-30`}>

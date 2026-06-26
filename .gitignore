@@ -28,3 +28,15 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# Production secrets (KHÔNG commit)
+.env.production
+.env.*.local
+
+# Runtime client data (proxy list, config, log — nhạy cảm)
+client/data/
+
+# Session / dump / artifacts rác
+.claude/
+backup_realsearch_db.sql
+brand/claude-local-pack.tar.gz

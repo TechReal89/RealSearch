@@ -13,7 +13,7 @@ import { jobApi } from "@/lib/api";
 import { toast } from "sonner";
 import {
   Briefcase, Plus, Play, Pause, RotateCcw, Pencil, Trash2, Globe, Search, Share2, Link2,
-  AlertTriangle, Sparkles, Info, Crown, Zap,
+  AlertTriangle, Sparkles, Info, Crown, Zap, Lock,
 } from "lucide-react";
 
 const statusConfig: Record<string, { label: string; color: string; dot: string }> = {
@@ -42,6 +42,8 @@ type Pricing = {
   tier_max_keywords: number;
   allow_internal_click: boolean;
   allow_keyword_seo: boolean;
+  allow_backlink: boolean;
+  allow_social_media: boolean;
 };
 
 const tierNames: Record<string, string> = {
@@ -245,7 +247,7 @@ export default function JobsPage() {
               </div>
               <div>
                 <span className="text-lg">Tạo công việc mới</span>
-                <p className="text-xs text-[#666] font-normal mt-0.5">Thiết lập job tăng traffic & SEO tự động</p>
+                <p className="text-xs text-[#999] font-normal mt-0.5">Thiết lập job tăng traffic & SEO tự động</p>
               </div>
             </DialogTitle>
           </DialogHeader>
@@ -269,7 +271,7 @@ export default function JobsPage() {
               </div>
               <div>
                 <span className="text-lg">Chỉnh sửa công việc</span>
-                <p className="text-xs text-[#666] font-normal mt-0.5 truncate max-w-[350px]">{editJob?.title as string}</p>
+                <p className="text-xs text-[#999] font-normal mt-0.5 truncate max-w-[350px]">{editJob?.title as string}</p>
               </div>
             </DialogTitle>
           </DialogHeader>
@@ -321,6 +323,7 @@ function JobForm({
 
   const minCost = form.job_type === "keyword_seo"
     ? (pricing?.min_cost_keyword || 20)
+    : (form.job_type === "social_media" || form.job_type === "backlink") ? 2
     : (pricing?.min_cost_viewlink || 10);
 
   const tierMaxClicks = pricing?.tier_max_internal_clicks || 0;
@@ -343,15 +346,28 @@ function JobForm({
 
   const effectiveCost = Math.max(form.credit_per_view, minCost);
 
-  const inputClass = "h-11 bg-[#0a0a12] border-[rgba(212,168,75,0.10)] focus:border-[#d4a84b] focus:shadow-[0_0_12px_rgba(212,168,75,0.08)] text-[#f5f0e8] placeholder:text-[#555] transition-all rounded-lg";
-  const labelClass = "text-[#a0a0b0] text-xs font-medium mb-1.5 block";
-  const helperClass = "text-[10px] text-[#555] mt-1";
-  const sectionClass = "space-y-4 rounded-xl p-5 border border-[rgba(212,168,75,0.08)] bg-[rgba(212,168,75,0.015)]";
+  const inputClass = "h-11 bg-[#12121c] border-[rgba(212,168,75,0.15)] focus:border-[#d4a84b] focus:shadow-[0_0_12px_rgba(212,168,75,0.12)] text-[#f5f0e8] placeholder:text-[#666] transition-all rounded-lg";
+  const labelClass = "text-[#c0c0cc] text-xs font-medium mb-1.5 block";
+  const helperClass = "text-[10px] text-[#888] mt-1";
+  const sectionClass = "space-y-4 rounded-xl p-5 border border-[rgba(212,168,75,0.12)] bg-[rgba(212,168,75,0.025)]";
+
+  // Tier-based feature access check
+  const tierAccess: Record<string, boolean> = {
+    viewlink: true, // All tiers
+    keyword_seo: pricing?.allow_keyword_seo ?? false, // Silver+
+    backlink: pricing?.allow_backlink ?? false, // Gold+
+    social_media: pricing?.allow_social_media ?? false, // Gold+
+  };
+  const tierRequired: Record<string, string> = {
+    keyword_seo: "Bạc",
+    backlink: "Vàng",
+    social_media: "Vàng",
+  };
 
   const jobTypes = [
     { value: "viewlink", label: "View Link", desc: "Tăng lượt truy cập website", icon: Globe, color: "text-blue-400", bg: "bg-blue-500/10", border: "border-blue-500/20" },
     { value: "keyword_seo", label: "Keyword SEO", desc: "Tăng thứ hạng từ khóa Google", icon: Search, color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20" },
-    { value: "backlink", label: "Backlink", desc: "Tạo backlink chất lượng", icon: Link2, color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
+    { value: "backlink", label: "Backlink", desc: "Tăng traffic qua backlink", icon: Link2, color: "text-purple-400", bg: "bg-purple-500/10", border: "border-purple-500/20" },
     { value: "social_media", label: "Social Media", desc: "Tăng view mạng xã hội", icon: Share2, color: "text-pink-400", bg: "bg-pink-500/10", border: "border-pink-500/20" },
   ];
 
@@ -365,26 +381,36 @@ function JobForm({
             {jobTypes.map((jt) => {
               const Icon = jt.icon;
               const selected = form.job_type === jt.value;
+              const locked = !tierAccess[jt.value];
               return (
                 <button
                   key={jt.value}
                   type="button"
+                  disabled={locked}
                   onClick={() => {
-                    const newMinCost = jt.value === "keyword_seo" ? (pricing?.min_cost_keyword || 20) : (pricing?.min_cost_viewlink || 10);
+                    if (locked) return;
+                    const newMinCost = jt.value === "keyword_seo"
+                      ? (pricing?.min_cost_keyword || 20)
+                      : (jt.value === "social_media" || jt.value === "backlink") ? 2
+                      : (pricing?.min_cost_viewlink || 10);
                     setForm({ ...form, job_type: jt.value, config: {}, credit_per_view: newMinCost });
                   }}
-                  className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left ${
-                    selected
+                  className={`flex items-center gap-3 p-3.5 rounded-xl border transition-all text-left relative ${
+                    locked
+                      ? "bg-[#0a0a12] border-[rgba(255,255,255,0.03)] opacity-50 cursor-not-allowed"
+                      : selected
                       ? `${jt.bg} ${jt.border} border-opacity-100 shadow-sm`
-                      : "bg-[#0a0a12] border-[rgba(255,255,255,0.04)] hover:border-[rgba(255,255,255,0.08)]"
+                      : "bg-[#0a0a12] border-[rgba(255,255,255,0.06)] hover:border-[rgba(255,255,255,0.12)]"
                   }`}
                 >
-                  <div className={`w-9 h-9 rounded-lg ${jt.bg} flex items-center justify-center flex-shrink-0`}>
-                    <Icon className={`w-4 h-4 ${jt.color}`} />
+                  <div className={`w-9 h-9 rounded-lg ${locked ? "bg-[rgba(255,255,255,0.03)]" : jt.bg} flex items-center justify-center flex-shrink-0`}>
+                    {locked ? <Lock className="w-4 h-4 text-[#555]" /> : <Icon className={`w-4 h-4 ${jt.color}`} />}
                   </div>
                   <div className="min-w-0">
-                    <p className={`text-sm font-semibold ${selected ? jt.color : "text-[#ccc]"}`}>{jt.label}</p>
-                    <p className="text-[10px] text-[#666] leading-tight">{jt.desc}</p>
+                    <p className={`text-sm font-semibold ${locked ? "text-[#666]" : selected ? jt.color : "text-[#ddd]"}`}>{jt.label}</p>
+                    <p className="text-[10px] text-[#777] leading-tight">
+                      {locked ? `Yêu cầu cấp ${tierRequired[jt.value] || "cao hơn"}` : jt.desc}
+                    </p>
                   </div>
                 </button>
               );
@@ -415,19 +441,25 @@ function JobForm({
 
         <div>
           <label className={labelClass}>
-            {form.job_type === "keyword_seo" ? "URL trang đích (landing page)" : "URL mục tiêu"}
+            {form.job_type === "keyword_seo" ? "URL trang đích (landing page)"
+              : form.job_type === "backlink" ? "URL đích (trang nhận backlink)"
+              : form.job_type === "social_media" ? "URL video/bài viết cần tăng view"
+              : "URL mục tiêu"}
           </label>
           <div className="relative">
-            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#555]" />
+            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#777]" />
             <Input
               value={form.target_url}
               onChange={(e) => setForm({ ...form, target_url: e.target.value })}
-              placeholder="https://example.com"
+              placeholder={form.job_type === "social_media" ? "https://youtube.com/watch?v=..." : "https://example.com"}
               className={`${inputClass} pl-10`}
             />
           </div>
           <p className={helperClass}>
-            {form.job_type === "keyword_seo" ? "URL sẽ được click khi tìm thấy trên Google" : "Trang web sẽ nhận lượt truy cập"}
+            {form.job_type === "keyword_seo" ? "URL sẽ được click khi tìm thấy trên Google"
+              : form.job_type === "backlink" ? "URL mà backlink trên bài viết sẽ trỏ tới"
+              : form.job_type === "social_media" ? "Dán link video YouTube, Facebook hoặc TikTok. Client sẽ mở và xem video thực tế với các tương tác tự nhiên."
+              : "Trang web sẽ nhận lượt truy cập"}
           </p>
         </div>
       </div>
@@ -524,21 +556,21 @@ function JobForm({
                   disabled={!pricing?.allow_internal_click && tierMaxClicks === 0}
                 />
                 <div>
-                  <Label htmlFor="vl_click" className="text-sm text-[#ccc] cursor-pointer font-medium flex items-center gap-1.5">
+                  <Label htmlFor="vl_click" className="text-sm text-[#e0e0e8] cursor-pointer font-medium flex items-center gap-1.5">
                     Click link nội bộ
                     <Crown className="w-3.5 h-3.5 text-[#d4a84b]" />
                   </Label>
-                  <p className="text-[10px] text-[#555]">Tự động click vào các link trên trang để tăng pageview</p>
+                  <p className="text-[10px] text-[#888]">Tự động click vào các link trên trang để tăng pageview</p>
                 </div>
               </div>
             </div>
 
             {!!form.config.click_internal_links && (
               <div className="p-3.5 border-t border-[rgba(255,255,255,0.04)] space-y-3">
-                <div className="flex items-center gap-2 text-[10px] text-[#888] bg-[rgba(212,168,75,0.04)] rounded-md px-3 py-2">
+                <div className="flex items-center gap-2 text-[10px] text-[#aaa] bg-[rgba(212,168,75,0.06)] rounded-md px-3 py-2">
                   <Crown className="w-3 h-3 text-[#d4a84b]" />
                   <span>Cấp <strong className="text-[#d4a84b]">{tierNames[userTier]}</strong>: miễn phí {tierMaxClicks} link/lượt</span>
-                  {tierMaxClicks < 10 && <span className="text-[#666]">| Thêm: +{extraClickCost} credit/link/lượt</span>}
+                  {tierMaxClicks < 10 && <span className="text-[#999]">| Thêm: +{extraClickCost} credit/link/lượt</span>}
                 </div>
                 <div>
                   <label className={labelClass}>Số link nội bộ tối đa</label>
@@ -566,10 +598,10 @@ function JobForm({
           {/* Keywords with tier info */}
           <div>
             <label className={labelClass}>Từ khoá (mỗi dòng 1 từ khoá)</label>
-            <div className="flex items-center gap-2 text-[10px] text-[#888] bg-[rgba(212,168,75,0.04)] rounded-md px-3 py-2 mb-2">
+            <div className="flex items-center gap-2 text-[10px] text-[#aaa] bg-[rgba(212,168,75,0.06)] rounded-md px-3 py-2 mb-2">
               <Crown className="w-3 h-3 text-[#d4a84b]" />
               <span>Cấp <strong className="text-[#d4a84b]">{tierNames[userTier]}</strong>: miễn phí {tierMaxKeywords} keyword/job</span>
-              {tierMaxKeywords < 10 && <span className="text-[#666]">| Thêm: +{extraKeywordCost} credit/keyword/lượt</span>}
+              {tierMaxKeywords < 10 && <span className="text-[#999]">| Thêm: +{extraKeywordCost} credit/keyword/lượt</span>}
             </div>
             <Textarea
               value={((form.config.keywords as string[]) || []).join("\n")}
@@ -580,7 +612,7 @@ function JobForm({
             />
             <div className="flex items-center justify-between mt-1">
               <p className={helperClass}>Hệ thống sẽ search từ khoá trên Google và click vào trang của bạn</p>
-              <span className={`text-[10px] font-mono ${keywords.length > tierMaxKeywords ? "text-purple-400" : "text-[#555]"}`}>
+              <span className={`text-[10px] font-mono ${keywords.length > tierMaxKeywords ? "text-purple-400" : "text-[#888]"}`}>
                 {keywords.length}/{tierMaxKeywords} miễn phí
               </span>
             </div>
@@ -589,7 +621,7 @@ function JobForm({
           <div>
             <label className={labelClass}>Domain mục tiêu</label>
             <div className="relative">
-              <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#555]" />
+              <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#777]" />
               <Input value={(form.config.target_domain as string) || ""} onChange={(e) => updateConfig("target_domain", e.target.value)} placeholder="example.com" className={`${inputClass} pl-10`} />
             </div>
             <p className={helperClass}>Domain cần tìm và click trong kết quả Google</p>
@@ -631,21 +663,21 @@ function JobForm({
                   disabled={!pricing?.allow_internal_click && tierMaxClicks === 0}
                 />
                 <div>
-                  <Label htmlFor="kw_click" className="text-sm text-[#ccc] cursor-pointer font-medium flex items-center gap-1.5">
+                  <Label htmlFor="kw_click" className="text-sm text-[#e0e0e8] cursor-pointer font-medium flex items-center gap-1.5">
                     Click bài viết liên quan
                     <Crown className="w-3.5 h-3.5 text-[#d4a84b]" />
                   </Label>
-                  <p className="text-[10px] text-[#555]">Sau khi vào trang, click thêm các bài viết liên quan</p>
+                  <p className="text-[10px] text-[#888]">Sau khi vào trang, click thêm các bài viết liên quan</p>
                 </div>
               </div>
             </div>
 
             {!!form.config.click_internal_links && (
               <div className="p-3.5 border-t border-[rgba(255,255,255,0.04)] space-y-3">
-                <div className="flex items-center gap-2 text-[10px] text-[#888] bg-[rgba(212,168,75,0.04)] rounded-md px-3 py-2">
+                <div className="flex items-center gap-2 text-[10px] text-[#aaa] bg-[rgba(212,168,75,0.06)] rounded-md px-3 py-2">
                   <Crown className="w-3 h-3 text-[#d4a84b]" />
                   <span>Cấp <strong className="text-[#d4a84b]">{tierNames[userTier]}</strong>: miễn phí {tierMaxClicks} link/lượt</span>
-                  {tierMaxClicks < 10 && <span className="text-[#666]">| Thêm: +{extraClickCost} credit/link/lượt</span>}
+                  {tierMaxClicks < 10 && <span className="text-[#999]">| Thêm: +{extraClickCost} credit/link/lượt</span>}
                 </div>
                 <div>
                   <label className={labelClass}>Số link nội bộ tối đa</label>
@@ -660,6 +692,75 @@ function JobForm({
         </div>
       )}
 
+      {/* Backlink Config */}
+      {form.job_type === "backlink" && (
+        <div className={sectionClass}>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-5 h-5 rounded-md bg-purple-500/10 flex items-center justify-center">
+              <Link2 className="w-3 h-3 text-purple-400" />
+            </div>
+            <span className="text-xs font-semibold text-purple-400 uppercase tracking-wider">Cấu hình Backlink</span>
+          </div>
+
+          <div className="flex items-start gap-2 px-4 py-3 rounded-lg bg-[rgba(168,85,247,0.05)] border border-[rgba(168,85,247,0.15)]">
+            <Info className="w-4 h-4 text-purple-400 mt-0.5 flex-shrink-0" />
+            <div className="text-xs text-purple-300 leading-relaxed">
+              <p>Client sẽ truy cập bài viết chứa backlink → đọc tự nhiên → tìm anchor text → click vào link trỏ về trang đích của bạn.</p>
+            </div>
+          </div>
+
+          <div>
+            <label className={labelClass}>URL bài viết chứa backlink (mỗi dòng 1 URL)</label>
+            <Textarea
+              value={((form.config.article_urls as string[]) || []).join("\n")}
+              onChange={(e) => updateConfig("article_urls", e.target.value.split("\n").filter(Boolean))}
+              placeholder={"https://blog1.com/bai-viet-co-backlink\nhttps://blog2.com/review-san-pham"}
+              rows={4}
+              className={`${inputClass} h-auto resize-none`}
+            />
+            <p className={helperClass}>Các bài viết đã được chèn backlink trỏ về trang đích của bạn</p>
+          </div>
+
+          <div>
+            <label className={labelClass}>Anchor text (mỗi dòng 1 anchor text)</label>
+            <Textarea
+              value={((form.config.anchor_texts as string[]) || []).join("\n")}
+              onChange={(e) => updateConfig("anchor_texts", e.target.value.split("\n").filter(Boolean))}
+              placeholder={"xem thêm tại đây\ntìm hiểu chi tiết\ntên thương hiệu"}
+              rows={3}
+              className={`${inputClass} h-auto resize-none`}
+            />
+            <p className={helperClass}>Text hiển thị trên link backlink. Nếu không tìm thấy, hệ thống sẽ tìm theo URL đích</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Ở trên bài viết min (s)</label>
+              <Input type="number" value={(form.config.min_time_on_site as number) || 20} onChange={(e) => updateConfig("min_time_on_site", +e.target.value)} className={inputClass} min={5} />
+              <p className={helperClass}>Thời gian đọc bài viết tối thiểu</p>
+            </div>
+            <div>
+              <label className={labelClass}>Ở trên bài viết max (s)</label>
+              <Input type="number" value={(form.config.max_time_on_site as number) || 60} onChange={(e) => updateConfig("max_time_on_site", +e.target.value)} className={inputClass} min={10} />
+              <p className={helperClass}>Thời gian đọc bài viết tối đa</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Ở trên trang đích min (s)</label>
+              <Input type="number" value={(form.config.min_time_on_target as number) || 30} onChange={(e) => updateConfig("min_time_on_target", +e.target.value)} className={inputClass} min={5} />
+              <p className={helperClass}>Sau khi click backlink</p>
+            </div>
+            <div>
+              <label className={labelClass}>Ở trên trang đích max (s)</label>
+              <Input type="number" value={(form.config.max_time_on_target as number) || 120} onChange={(e) => updateConfig("max_time_on_target", +e.target.value)} className={inputClass} min={10} />
+              <p className={helperClass}>Thời gian duyệt trang đích tối đa</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Social Media Config */}
       {form.job_type === "social_media" && (
         <div className={sectionClass}>
@@ -670,28 +771,113 @@ function JobForm({
             <span className="text-xs font-semibold text-pink-400 uppercase tracking-wider">Cấu hình Social Media</span>
           </div>
 
+          {/* Info box - auto interactions */}
+          <div className="rounded-lg border border-[rgba(99,102,241,0.15)] bg-[rgba(99,102,241,0.05)] p-3 space-y-1.5">
+            <p className="text-xs font-semibold text-indigo-300">Tương tác tự động khi xem video (miễn phí)</p>
+            <ul className="text-[11px] text-[#aaa] space-y-0.5 list-disc list-inside">
+              <li>Xem video thực tế với playback monitoring (không fake)</li>
+              <li>Tự động skip quảng cáo YouTube</li>
+              <li>Tương tác ngẫu nhiên: hover thanh tiến trình, xem comment, mở mô tả</li>
+              <li>Dừng video ngắn rồi phát lại (mô phỏng người dùng bị phân tâm)</li>
+              <li>Tua nhanh vài giây (mô phỏng bỏ qua đoạn nhàm chán)</li>
+              <li>YouTube Shorts: 30% xác suất swipe sang video tiếp theo</li>
+            </ul>
+          </div>
+
           <div>
             <label className={labelClass}>Nền tảng</label>
             <Select value={(form.config.platform as string) || "youtube"} onValueChange={(v) => updateConfig("platform", v)}>
               <SelectTrigger className={inputClass}><SelectValue /></SelectTrigger>
               <SelectContent className="bg-[#111118] border-[rgba(212,168,75,0.12)]">
-                <SelectItem value="youtube">YouTube</SelectItem>
-                <SelectItem value="facebook">Facebook</SelectItem>
-                <SelectItem value="tiktok">TikTok</SelectItem>
+                <SelectItem value="youtube">YouTube (Video & Shorts)</SelectItem>
+                <SelectItem value="facebook">Facebook (Bài viết & Reel)</SelectItem>
+                <SelectItem value="tiktok">TikTok (Video)</SelectItem>
               </SelectContent>
             </Select>
+            <p className={helperClass}>
+              {(form.config.platform as string) === "youtube" || !(form.config.platform as string)
+                ? "Hỗ trợ video thường và Shorts. Tự động phát hiện loại video từ URL."
+                : (form.config.platform as string) === "facebook"
+                ? "Cuộn + đọc bài viết/xem video tự nhiên trên Facebook."
+                : "Xem video TikTok đủ thời gian yêu cầu."}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>Thời gian xem tối thiểu (s)</label>
               <Input type="number" value={(form.config.min_watch_time as number) || 30} onChange={(e) => updateConfig("min_watch_time", +e.target.value)} className={inputClass} min={5} />
+              <p className={helperClass}>Client sẽ xem ít nhất bao nhiêu giây</p>
             </div>
             <div>
               <label className={labelClass}>Thời gian xem tối đa (s)</label>
               <Input type="number" value={(form.config.max_watch_time as number) || 120} onChange={(e) => updateConfig("max_watch_time", +e.target.value)} className={inputClass} min={10} />
+              <p className={helperClass}>Thời gian xem ngẫu nhiên giữa min và max</p>
             </div>
           </div>
+
+          {/* Comment Backlink - YouTube only, Gold+ */}
+          {((form.config.platform as string) === "youtube" || !(form.config.platform as string)) && (
+            <div className="rounded-lg border border-[rgba(251,146,60,0.15)] bg-[rgba(251,146,60,0.04)] p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-orange-300">Backlink trong comment (nâng cao)</p>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[rgba(255,215,0,0.1)] text-[#FFD700] font-bold">Vàng+</span>
+              </div>
+              {(userTier === "gold" || userTier === "diamond") ? (
+                <>
+                  <p className="text-[11px] text-[#999]">
+                    Sau khi xem video xong, client sẽ cuộn xuống phần comment → tìm link chứa URL bạn nhập → click vào link đó → duyệt trang đích tự nhiên. Tạo traffic referral từ YouTube về website.
+                  </p>
+                  <Input
+                    placeholder="https://yourwebsite.com"
+                    value={(form.config.comment_backlink_url as string) || ""}
+                    onChange={(e) => updateConfig("comment_backlink_url", e.target.value)}
+                    className={inputClass}
+                  />
+                  <p className={helperClass}>Để trống nếu chỉ cần tăng view video. Nhập URL website nếu muốn client click backlink trong comment.</p>
+
+                  {/* Time on target - configurable for Gold+ */}
+                  {(form.config.comment_backlink_url as string) && (
+                    <div className="pt-2 space-y-2 border-t border-[rgba(251,146,60,0.1)]">
+                      <p className="text-[11px] text-orange-300/80 font-medium">Thời gian ở lại trang đích</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className={labelClass}>Tối thiểu (s)</label>
+                          <Input
+                            type="number"
+                            value={(form.config.backlink_min_time_on_target as number) || 60}
+                            onChange={(e) => updateConfig("backlink_min_time_on_target", +e.target.value)}
+                            className={inputClass}
+                            min={10}
+                            max={600}
+                          />
+                        </div>
+                        <div>
+                          <label className={labelClass}>Tối đa (s)</label>
+                          <Input
+                            type="number"
+                            value={(form.config.backlink_max_time_on_target as number) || 180}
+                            onChange={(e) => updateConfig("backlink_max_time_on_target", +e.target.value)}
+                            className={inputClass}
+                            min={10}
+                            max={600}
+                          />
+                        </div>
+                      </div>
+                      <p className={helperClass}>Client sẽ duyệt trang đích ngẫu nhiên trong khoảng min-max giây. Mặc định: 60-180s.</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center gap-2 py-2">
+                  <Lock className="w-4 h-4 text-[#666]" />
+                  <p className="text-[11px] text-[#888]">
+                    Nâng cấp lên hạng <span className="text-[#FFD700] font-semibold">Vàng</span> trở lên để sử dụng tính năng backlink trong comment YouTube. Mặc định hệ thống sẽ chạy với cài đặt cơ bản.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
