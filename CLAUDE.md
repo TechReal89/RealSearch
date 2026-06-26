@@ -1999,3 +1999,40 @@ Tuan 10:
 9. Nang cap cap bac -> kiem tra priority tang, tinh nang mo khoa
 10. Tao khuyen mai -> ap dung -> kiem tra bonus credit
 ```
+
+---
+
+## 17. DEERFLOW (AI AGENT HO TRO CONG VIEC) - MEMORY
+
+### 17.1. DeerFlow la gi
+- **DeerFlow** (Deep Exploration and Efficient Research Flow): SuperAgent harness ma nguon mo cua **ByteDance**, license MIT, top 1 GitHub Trending (DeerFlow 2.0 open-source 27/02/2026).
+- Repo: https://github.com/bytedance/deer-flow
+- Chuc nang: agent tu nghien cuu + code + tao san pham (report, slide, web, anh, video) cho task dai vai phut -> vai gio.
+- Kien truc: LangGraph + LangChain. Backend Python 3.12+, Frontend Node 22/TS/React. Self-host (Docker/K8s, ~8GB RAM).
+- Thanh phan: **Sandbox** (chay code cach ly), **Memory** (nho profile/so thich qua phien), **Sub-agents** (chia task song song), **Skills** (module Markdown), **Message Gateway** (Telegram/Slack/Lark/WeChat/DingTalk).
+- **Model-agnostic** (chuan OpenAI API). Ho tro Claude Code OAuth + Codex CLI lam backend (KHONG phai "gop chung" - reel noi qua). ByteDance khuyen dung Doubao-Seed-2.0-Code, DeepSeek v3.2, Kimi 2.5.
+- **Canh bao bao mat**: DeerFlow co quyen chay lenh he thong -> chi chay local/loopback (127.0.0.1), KHONG cai chung server production cua san.
+
+### 17.2. Muc tieu su dung cua user (vn.techreal@gmail.com)
+- Dung DeerFlow ho tro cong viec & TAT CA du an.
+- Du an dang trien khai: **san dang tin BDS dangtinbatdongsan.vn** (golive 2026-06-26, moi 1 ngay).
+- Uu tien truoc mat: **Content & SEO cho san BDS** (user da chon).
+
+### 17.3. San pham da lam (xem docs/deerflow-bds/)
+- `skills/listing-description.skill.md` - sinh mo ta tin dang chuan SEO, nhieu bien the chong duplicate content.
+- `skills/seo-article.skill.md` - viet bai SEO keo organic traffic (internal link + FAQ schema).
+- `skills/keyword-competitor-research.skill.md` - keyword map + phan tich doi thu, ban giao keyword cho RealSearch.
+- `CONTENT-SEO-PLAYBOOK.md` - quy trinh van hanh tuan + KPI 30/60/90 ngay.
+- `keyword-map-starter.csv` + `.md` - 32 tu khoa long-tail, da phan job keyword_seo/viewlink, nap thang vao RealSearch.
+- Da push branch `claude/facebook-share-link-l1afz7`, draft **PR #2**.
+
+### 17.4. Diem noi DeerFlow <-> RealSearch
+- DeerFlow lo CONTENT (sinh mo ta tin + bai SEO cho tung target_url).
+- RealSearch lo TRAFFIC/THU HANG (job keyword_seo + viewlink theo keyword map).
+- Output JSON skill nghien cuu (quick_wins, keyword_map) -> goi POST /jobs cua RealSearch -> khep kin vong.
+- LUU Y: phai co content that tren target_url TRUOC khi day RealSearch (Google vao trang rong se phan tac dung).
+
+### 17.5. TODO chua lam
+- [ ] Mau that 1 tin dang tu skill mo ta (can user dua thong so 1 BDS).
+- [ ] Script cau noi DeerFlow output -> API dang tin san + POST /jobs RealSearch (can thong tin API san + RealSearch).
+- [ ] Verify volume/difficulty keyword bang Google Search Console + Keyword Planner (hien chi la uoc luong dinh tinh).
